@@ -3,13 +3,14 @@ name: Deploy to Vercel
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
     env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
@@ -19,10 +20,5 @@ jobs:
           node-version: "20"
       - run: npm ci
       - run: npm install -g vercel@latest
-      - name: Deploy to Vercel
-        run: |
-          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ github.event_name }}" = "push" ]; then
-            vercel --yes --prod --token ${{ secrets.VERCEL_TOKEN }}
-          else
-            vercel --yes --token ${{ secrets.VERCEL_TOKEN }}
-          fi
+      - name: Deploy to Vercel (production)
+        run: vercel --yes --prod --token "$VERCEL_TOKEN"
