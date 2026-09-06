@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { recommendKit } from "@/lib/recommendation";
 import { PRODUCTS } from "@/data/products";
 import { formatPrice } from "@/lib/utils";
@@ -33,6 +34,7 @@ const styleOptions = [
 const videoOptions = [
   { value: "analog", label: "Analog", description: "Cheapest, lower image quality" },
   { value: "dji_o4", label: "DJI O4", description: "HD digital, best image quality" },
+  { value: "recommend", label: "Recommend", description: "Best for my budget" },
 ] as const;
 
 export function Recommender() {
@@ -42,7 +44,7 @@ export function Recommender() {
     budget: 400,
     experience: "beginner",
     style: "tinywhoop",
-    videoSystem: "analog",
+    videoSystem: "recommend",
   });
   const [result, setResult] = useState<RecommendationResult | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
@@ -80,16 +82,15 @@ export function Recommender() {
       budget: 400,
       experience: "beginner",
       style: "tinywhoop",
-      videoSystem: "analog",
+      videoSystem: "recommend",
     });
   }
 
   function setAndNext<K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) {
-    updatePrefs(key, value);
-    // Allow state to update before advancing.
+    const updated = { ...prefs, [key]: value } as UserPreferences;
+    setPrefs(updated);
     setTimeout(() => {
       if (key === "videoSystem") {
-        const updated = { ...prefs, [key]: value } as UserPreferences;
         setResult(recommendKit(updated, PRODUCTS));
         setStep((s) => s + 1);
       } else {
@@ -99,7 +100,7 @@ export function Recommender() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-12 md:py-16">
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-12 md:py-16">
       <AnimatePresence mode="wait">
         {!started ? (
           <motion.div
@@ -329,7 +330,7 @@ function ResultView({
           Budget too tight
         </h2>
         <p className="mt-4 max-w-lg text-lg text-zinc-600">
-          We could not build a compatible {prefs.style} kit with {prefs.videoSystem.toUpperCase()}{" "}
+          We could not build a compatible {prefs.style} kit with {prefs.videoSystem === "recommend" ? "recommended" : prefs.videoSystem.toUpperCase()}{" "}
           video within {formatPrice(prefs.budget)}.
         </p>
         <p className="mt-2 text-zinc-600">
@@ -379,13 +380,19 @@ function ResultView({
         </div>
       </div>
 
+      <KitComposition bundle={bundle} onDetail={onDetail} />
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="mt-8 max-w-3xl rounded-2xl bg-zinc-50 p-6 text-zinc-700 leading-relaxed"
+      >
+        {bundle.explanation}
+      </motion.p>
+
       <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <ProductCard
-          product={bundle.drone}
-          label="Drone"
-          onDetail={onDetail}
-          highlight
-        />
+        <ProductCard product={bundle.drone} label="Drone" onDetail={onDetail} highlight />
         <ProductCard product={bundle.goggles} label="Goggles" onDetail={onDetail} />
         <ProductCard product={bundle.radio} label="Radio" onDetail={onDetail} />
         <ProductCard product={bundle.charger} label="Charger" onDetail={onDetail} />
@@ -399,12 +406,12 @@ function ResultView({
 
       <div className="mt-10 flex flex-wrap gap-4">
         <a
-          href={bundle.drone.purchaseUrl || "#"}
+          href={bundle.drone.productUrl || "#"}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex h-14 items-center justify-center rounded-full bg-zinc-900 px-8 text-lg font-medium text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
         >
-          Shop this kit
+          Shop drone
         </a>
         <button
           onClick={onRestart}
@@ -413,6 +420,84 @@ function ResultView({
           Start over
         </button>
       </div>
+    </motion.div>
+  );
+}
+
+function KitComposition({
+  bundle,
+  onDetail,
+}: {
+  bundle: KitBundle;
+  onDetail: (product: Product) => void;
+}) {
+  const items: { product: Product; label: string; quantity?: number }[] = [
+    { product: bundle.goggles, label: "Goggles" },
+    { product: bundle.drone, label: "Drone" },
+    { product: bundle.radio, label: "Radio" },
+    { product: bundle.charger, label: "Charger" },
+    { product: bundle.battery, label: "Batteries", quantity: bundle.batteryQuantity },
+  ];
+
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.08 },
+    },
+  };
+
+  const itemAnim = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 },
+  };
+
+  return (
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="mt-8 flex items-start gap-2 overflow-x-auto rounded-3xl bg-zinc-50 p-4 md:items-center md:justify-center md:p-6"
+    >
+      {items.map(({ product, label, quantity }, index) => (
+        <div key={product.id} className="flex items-center">
+          <motion.button
+            variants={itemAnim}
+            onClick={() => onDetail(product)}
+            className="flex flex-col items-center rounded-2xl bg-white p-3 shadow-sm transition hover:shadow-md md:p-4"
+          >
+            <div className="relative h-20 w-20 md:h-28 md:w-28">
+              <Image
+                src={product.images[0]}
+                alt={product.name}
+                fill
+                className="object-contain p-2"
+                sizes="112px"
+              />
+            </div>
+            <div className="mt-2 text-center">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 md:text-xs">
+                {label}
+              </div>
+              <div
+                title={product.name}
+                className="mt-0.5 max-w-[100px] truncate text-xs font-semibold text-zinc-900 md:max-w-[120px] md:text-sm"
+              >
+                {product.name}
+              </div>
+              <div className="text-[10px] text-zinc-500 md:text-xs">
+                {quantity ? `${quantity} × ` : ""}
+                {formatPrice(product.priceUsd * (quantity ?? 1))}
+              </div>
+            </div>
+          </motion.button>
+          {index < items.length - 1 && (
+            <div className="mx-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-600 md:mx-2 md:h-10 md:w-10">
+              +
+            </div>
+          )}
+        </div>
+      ))}
     </motion.div>
   );
 }

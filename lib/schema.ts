@@ -55,7 +55,7 @@ export const productSchema = z.object({
   idealFor: z.array(z.string()),
   limitations: z.array(z.string()),
   images: z.array(z.string()).min(1, "Each product must have at least one image"),
-  purchaseUrl: z.string().url().optional(),
+  productUrl: z.string().url().optional(),
   affiliateUrl: z.string().url().optional(),
   availability: availabilitySchema.default("unknown"),
   verifiedAt: z.string().optional(),
@@ -82,6 +82,7 @@ export type KitBundle = {
   batteryQuantity: number;
   totalPrice: number;
   explanation: string;
+  score?: number;
 };
 
 export type RecommendationResult =
