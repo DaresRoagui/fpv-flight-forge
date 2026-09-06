@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Product } from "@/lib/schema";
-import { formatPrice } from "@/lib/utils";
+import { useLocale } from "@/app/components/LocaleProvider";
 
 export function ProductModal({
   product,
@@ -13,18 +13,16 @@ export function ProductModal({
   onClose: () => void;
 }) {
   const [imageIndex, setImageIndex] = useState(0);
+  const { t, formatPrice, localizeProduct } = useLocale();
 
   if (!product) return null;
 
-  const buyUrl = product.affiliateUrl || product.productUrl || "#";
-  const availabilityLabel: Record<string, string> = {
-    available: "Available",
-    unavailable: "Unavailable",
-    unknown: "Unknown",
-  };
+  const localized = localizeProduct(product);
+  const buyUrl = localized.affiliateUrl || localized.productUrl || "#";
 
   return (
     <div
+      data-testid="product-modal"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40"
       onClick={onClose}
       role="dialog"
@@ -38,19 +36,20 @@ export function ProductModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              {product.brand} {product.subcategory ? `· ${product.subcategory}` : ""}
+              {localized.brand} {localized.subcategory ? `· ${localized.subcategory}` : ""}
             </div>
             <h2
               id="product-title"
               className="mt-1 text-2xl font-semibold text-zinc-900 md:text-3xl"
             >
-              {product.name}
+              {localized.name}
             </h2>
           </div>
           <button
+            data-testid="close-modal"
             onClick={onClose}
             className="rounded-full p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
-            aria-label="Close"
+            aria-label={t("modal.close")}
           >
             <svg
               width="20"
@@ -69,16 +68,16 @@ export function ProductModal({
           <div>
             <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-zinc-100">
               <Image
-                src={product.images[imageIndex]}
-                alt={`${product.name} - photo ${imageIndex + 1}`}
+                src={localized.images[imageIndex]}
+                alt={`${localized.name} - ${t("modal.photo")} ${imageIndex + 1}`}
                 fill
                 className="object-contain p-6"
                 sizes="(max-width: 768px) 100vw, 500px"
               />
             </div>
-            {product.images.length > 1 && (
+            {localized.images.length > 1 && (
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {product.images.map((src, idx) => (
+                {localized.images.map((src, idx) => (
                   <button
                     key={`${src}-${idx}`}
                     onClick={() => setImageIndex(idx)}
@@ -88,7 +87,7 @@ export function ProductModal({
                   >
                     <Image
                       src={src}
-                      alt={`${product.name} thumbnail ${idx + 1}`}
+                      alt={`${localized.name} ${t("modal.thumbnail")} ${idx + 1}`}
                       fill
                       className="object-contain p-2"
                       sizes="64px"
@@ -101,18 +100,18 @@ export function ProductModal({
 
           <div className="space-y-5">
             <p className="text-lg leading-relaxed text-zinc-700">
-              {product.description}
+              {localized.description}
             </p>
 
-            {Object.keys(product.keySpecs).length > 0 && (
+            {Object.keys(localized.keySpecs).length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                  Key specs
+                  {t("modal.keySpecs")}
                 </h3>
                 <dl className="mt-3 grid grid-cols-2 gap-3">
-                  {Object.entries(product.keySpecs).map(([k, v]) => (
+                  {Object.entries(localized.keySpecs).map(([k, v]) => (
                     <div key={k} className="rounded-xl bg-zinc-50 p-3">
-                      <dt className="text-xs font-medium uppercase text-zinc-500">{k}</dt>
+                      <dt className="text-xs font-medium uppercase text-zinc-500">{t(`keySpecs.${k}`)}</dt>
                       <dd className="mt-1 text-sm font-semibold text-zinc-900">{v}</dd>
                     </div>
                   ))}
@@ -123,21 +122,21 @@ export function ProductModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                  Ideal for
+                  {t("modal.idealFor")}
                 </h3>
                 <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-700">
-                  {product.idealFor.map((item) => (
-                    <li key={item}>{item}</li>
+                  {localized.idealFor.map((item, i) => (
+                    <li key={`${item}-${i}`}>{item}</li>
                   ))}
                 </ul>
               </div>
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                  Limitations
+                  {t("modal.limitations")}
                 </h3>
                 <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-700">
-                  {product.limitations.map((item) => (
-                    <li key={item}>{item}</li>
+                  {localized.limitations.map((item, i) => (
+                    <li key={`${item}-${i}`}>{item}</li>
                   ))}
                 </ul>
               </div>
@@ -145,29 +144,29 @@ export function ProductModal({
 
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                Compatibility & sources
+                {t("modal.compatibility")}
               </h3>
               <div className="mt-3 space-y-2 text-sm text-zinc-700">
                 <div>
-                  <span className="font-semibold text-zinc-900">Video:</span>{" "}
-                  {product.videoSystems.join(", ") || "—"}
+                  <span className="font-semibold text-zinc-900">{t("modal.video")}:</span>{" "}
+                  {localized.videoSystems.join(", ") || "—"}
                 </div>
                 <div>
-                  <span className="font-semibold text-zinc-900">Protocols:</span>{" "}
-                  {product.protocols.join(", ") || "—"}
+                  <span className="font-semibold text-zinc-900">{t("modal.protocols")}:</span>{" "}
+                  {localized.protocols.join(", ") || "—"}
                 </div>
                 <div>
-                  <span className="font-semibold text-zinc-900">Availability:</span>{" "}
-                  {availabilityLabel[product.availability] || product.availability}
+                  <span className="font-semibold text-zinc-900">{t("modal.availability")}:</span>{" "}
+                  {t(`availability.${localized.availability}`)}
                 </div>
                 <div>
-                  <span className="font-semibold text-zinc-900">Verified:</span>{" "}
-                  {product.verifiedAt || "—"}
+                  <span className="font-semibold text-zinc-900">{t("modal.verified")}:</span>{" "}
+                  {localized.verifiedAt || "—"}
                 </div>
-                {product.sources.length > 0 && (
+                {localized.sources.length > 0 && (
                   <div>
-                    <span className="font-semibold text-zinc-900">Sources:</span>{" "}
-                    {product.sources.join("; ")}
+                    <span className="font-semibold text-zinc-900">{t("modal.sources")}:</span>{" "}
+                    {localized.sources.join("; ")}
                   </div>
                 )}
               </div>
@@ -177,7 +176,7 @@ export function ProductModal({
 
         <div className="mt-8 flex flex-col items-stretch justify-between gap-4 border-t border-zinc-100 pt-6 sm:flex-row sm:items-center">
           <div className="text-3xl font-semibold text-zinc-900">
-            {formatPrice(product.priceUsd)}
+            {formatPrice(localized.priceUsd, { compact: true })}
           </div>
           <div className="flex gap-3">
             <a
@@ -186,7 +185,7 @@ export function ProductModal({
               rel="noopener noreferrer"
               className="inline-flex h-12 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
             >
-              Buy {product.name}
+              {t("modal.buy", { name: localized.name })}
             </a>
           </div>
         </div>
