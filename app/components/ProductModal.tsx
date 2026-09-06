@@ -185,7 +185,7 @@ export function ProductModal({
               rel="noopener noreferrer"
               className="inline-flex h-12 items-center justify-center rounded-full bg-zinc-900 px-6 font-medium text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
             >
-              {t("modal.buy", { name: localized.name })}
+              {t("buttons.buy", { name: localized.name })}
             </a>
           </div>
         </div>

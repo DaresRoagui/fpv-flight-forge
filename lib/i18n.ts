@@ -99,6 +99,7 @@ export const DICTIONARY = {
       experience: "Experiencia",
       style: "Estilo",
       video: "Video",
+      step: "Paso",
     },
     budget: {
       title: "¿Cuál es tu presupuesto?",
@@ -157,6 +158,8 @@ export const DICTIONARY = {
     },
     modal: {
       close: "Cerrar",
+      photo: "Foto",
+      thumbnail: "Miniatura",
       keySpecs: "Especificaciones clave",
       idealFor: "Ideal para",
       limitations: "Limitaciones",
@@ -251,6 +254,7 @@ export const DICTIONARY = {
       experience: "Experience",
       style: "Style",
       video: "Video",
+      step: "Step",
     },
     budget: {
       title: "What is your budget?",
@@ -309,6 +313,8 @@ export const DICTIONARY = {
     },
     modal: {
       close: "Close",
+      photo: "Photo",
+      thumbnail: "Thumbnail",
       keySpecs: "Key specs",
       idealFor: "Ideal for",
       limitations: "Limitations",

@@ -50,7 +50,7 @@ export function ProductCard({
             onClick={() => onDetail(product)}
             className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:bg-zinc-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
           >
-            {t("productCard.details")}
+            {t("buttons.details")}
           </button>
         </div>
       </div>
