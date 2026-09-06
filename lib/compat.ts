@@ -37,11 +37,14 @@ function droneChemistrySupportsBattery(drone: Product, battery: Product): boolea
 export function batteryMatchesDrone(battery: Product, drone: Product): boolean {
   const droneCells = drone.keySpecs.cells ?? "";
   const batteryCells = battery.keySpecs.cells ?? "";
-  const droneConnector = drone.keySpecs.connector ?? "";
-  const batteryConnector = battery.keySpecs.connector ?? "";
+  const droneConnectors = parseList(drone.keySpecs.connector).map((s) => s.toLowerCase());
+  const batteryConnectors = parseList(battery.keySpecs.connector).map((s) => s.toLowerCase());
+  const connectorMatches =
+    batteryConnectors.length > 0 &&
+    batteryConnectors.some((bc) => droneConnectors.includes(bc));
   return (
     droneCells.toLowerCase() === batteryCells.toLowerCase() &&
-    droneConnector.toLowerCase() === batteryConnector.toLowerCase() &&
+    connectorMatches &&
     droneChemistrySupportsBattery(drone, battery)
   );
 }

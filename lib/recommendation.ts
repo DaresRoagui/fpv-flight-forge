@@ -9,13 +9,11 @@ import {
 } from "@/lib/schema";
 import {
   validateBundle,
-  videoSystemIsRecommended,
   flightStyleMatches,
-  protocolMatches,
-  videoSystemMatches,
   batteryMatchesDrone,
   chargerMatchesBattery,
 } from "@/lib/compat";
+import { formatPrice } from "@/lib/utils";
 
 export function batteryQuantity(style: FlightStyle): number {
   switch (style) {
@@ -35,8 +33,21 @@ export function batteryQuantity(style: FlightStyle): number {
 
 function videoSystemLabel(videoSystem: VideoSystem): string {
   if (videoSystem === "dji_o4") return "DJI O4";
-  if (videoSystem === "analog") return "Analógico";
+  if (videoSystem === "analog") return "analógico";
+  if (videoSystem === "hdzero") return "HDZero";
+  if (videoSystem === "walksnail") return "Walksnail";
   return videoSystem;
+}
+
+function labelStyle(style: FlightStyle): string {
+  const labels: Record<FlightStyle, string> = {
+    tinywhoop: "Tinywhoop/interiores",
+    freestyle: "Freestyle",
+    cinematic: "Cinemático",
+    longRange: "Long Range",
+    racing: "Racing",
+  };
+  return labels[style];
 }
 
 function calculateTotal(
@@ -59,8 +70,27 @@ function calculateTotal(
 
 type ScoredBundle = KitBundle & { score: number };
 
+function experienceBonus(product: Product, userLevel: ExperienceLevel): number {
+  const exact = product.experienceLevel.includes(userLevel);
+  const beginnerFriendly =
+    userLevel === "beginner" && product.experienceLevel.includes("beginner");
+  return exact ? 0.5 : beginnerFriendly ? 0.3 : 0;
+}
+
+function styleBonus(product: Product, style: FlightStyle): number {
+  const weights: Record<string, number> = {
+    drone: 0.35,
+    goggles: 0.2,
+    radio: 0.1,
+    charger: 0.1,
+    battery: 0.15,
+  };
+  return product.flightStyles.includes(style) ? weights[product.category] ?? 0.1 : 0;
+}
+
 function scoreBundle(bundle: ScoredBundle, prefs: UserPreferences): number {
-  const { goggles, drone, radio, charger, battery, totalPrice } = bundle;
+  const { drone, goggles, radio, charger, battery, totalPrice } = bundle;
+
   const weights = {
     drone: 0.35,
     goggles: 0.25,
@@ -78,33 +108,136 @@ function scoreBundle(bundle: ScoredBundle, prefs: UserPreferences): number {
 
   const budgetRatio = Math.min(totalPrice / prefs.budget, 1);
   const budgetBonus = budgetRatio * 2;
-
-  const experienceBonus = (product: Product, userLevel: ExperienceLevel): number => {
-    const exact = product.experienceLevel.includes(userLevel);
-    const beginnerFriendly =
-      userLevel === "beginner" && product.experienceLevel.includes("beginner");
-    return exact ? 0.5 : beginnerFriendly ? 0.3 : 0;
-  };
+  const overBudgetPenalty =
+    totalPrice > prefs.budget ? -((totalPrice - prefs.budget) / prefs.budget) * 5 : 0;
 
   const experienceScore =
     experienceBonus(drone, prefs.experience) +
     experienceBonus(goggles, prefs.experience) * 0.5 +
     experienceBonus(radio, prefs.experience) * 0.3;
 
-  // Prefer ELRS for simpler compatibility.
   const elrsBonus = (p: Product): number =>
     p.protocols.includes("elrs_2.4") ? 0.2 : 0;
   const protocolScore = elrsBonus(drone) + elrsBonus(radio);
 
-  return weightedRating + budgetBonus + experienceScore + protocolScore;
+  const styleScore =
+    styleBonus(drone, prefs.style) +
+    styleBonus(goggles, prefs.style) +
+    styleBonus(radio, prefs.style) +
+    styleBonus(charger, prefs.style) +
+    styleBonus(battery, prefs.style);
+
+  return (
+    weightedRating +
+    budgetBonus +
+    overBudgetPenalty +
+    experienceScore +
+    protocolScore +
+    styleScore
+  );
 }
 
-export function recommendKit(
+function componentReasons(
+  kit: KitBundle,
   prefs: UserPreferences,
-  products: Product[]
-): RecommendationResult {
-  const videoSystem = videoSystemIsRecommended(prefs);
+  videoSystem: VideoSystem
+): string {
+  const { drone, goggles, radio, charger, battery, batteryQuantity } = kit;
+  const reasons: string[] = [];
 
+  reasons.push(
+    `El ${drone.name} es el dron ${labelStyle(prefs.style)} en ${videoSystemLabel(
+      videoSystem
+    )} que mejor equilibra rendimiento, compatibilidad y precio dentro de tu presupuesto.`
+  );
+
+  reasons.push(
+    `Las ${goggles.name} comparten el sistema de video ${videoSystemLabel(
+      videoSystem
+    )} y se ajustan a tu nivel ${prefs.experience}.`
+  );
+
+  reasons.push(
+    `La ${radio.name} usa ${radio.protocols.includes("elrs_2.4") ? "ELRS 2.4 GHz" : radio.protocols.join(", ")}, compatible con el receptor del dron y adecuada para tu experiencia.`
+  );
+
+  reasons.push(
+    `La ${battery.name} (${battery.keySpecs.cells}, conector ${battery.keySpecs.connector}) encaja eléctricamente con el dron; recomendamos ${batteryQuantity} unidades para ${labelStyle(
+      prefs.style
+    )}.`
+  );
+
+  reasons.push(
+    `El ${charger.name} puede cargar de forma segura baterías ${battery.keySpecs.cells} con conector ${battery.keySpecs.connector}.`
+  );
+
+  return reasons.join(" ");
+}
+
+function buildExplanation(
+  kit: KitBundle,
+  prefs: UserPreferences,
+  videoSystem: VideoSystem
+): string {
+  const intro =
+    prefs.videoSystem === "recommend"
+      ? `Elegimos el sistema ${videoSystemLabel(videoSystem)} porque equilibra tu presupuesto (US$${
+          prefs.budget
+        }), estilo ${labelStyle(prefs.style)} y nivel ${prefs.experience}.`
+      : `Kit optimizado para ${labelStyle(prefs.style)} con sistema de video ${videoSystemLabel(
+          videoSystem
+        )}.`;
+
+  const reasons = componentReasons(kit, prefs, videoSystem);
+
+  const budgetLine = `Precio total: ${formatPrice(kit.totalPrice)} con ${
+    kit.batteryQuantity
+  } × ${kit.battery.name}.`;
+
+  return `${intro} ${reasons} ${budgetLine}`;
+}
+
+function findMinimumBudget(
+  prefs: UserPreferences,
+  products: Product[],
+  videoSystem: VideoSystem
+): number {
+  const goggles = products.filter(
+    (p) => p.category === "goggles" && p.videoSystems.includes(videoSystem)
+  );
+  const drones = products.filter(
+    (p) =>
+      p.category === "drone" &&
+      p.videoSystems.includes(videoSystem) &&
+      flightStyleMatches(p, prefs.style)
+  );
+  const radios = products.filter((p) => p.category === "radio");
+  const chargers = products.filter((p) => p.category === "charger");
+  const batteries = products.filter((p) => p.category === "battery");
+
+  let min = Infinity;
+  for (const g of goggles) {
+    for (const d of drones) {
+      for (const r of radios) {
+        for (const b of batteries) {
+          if (!batteryMatchesDrone(b, d)) continue;
+          for (const c of chargers) {
+            if (!chargerMatchesBattery(c, b)) continue;
+            const total = calculateTotal(g, d, r, c, b, prefs.style);
+            if (total < min) min = total;
+          }
+        }
+      }
+    }
+  }
+  return min;
+}
+
+function recommendKitForSystem(
+  prefs: UserPreferences,
+  products: Product[],
+  videoSystem: VideoSystem
+): RecommendationResult {
   const goggles = products.filter(
     (p) => p.category === "goggles" && p.videoSystems.includes(videoSystem)
   );
@@ -152,98 +285,71 @@ export function recommendKit(
   }
 
   if (candidates.length === 0) {
-    // No fully compatible bundle found. Compute the cheapest possible
-    // compatible bundle to recommend a minimum budget.
-    const fallback: Array<{ total: number }> = [];
-    for (const g of goggles) {
-      for (const d of drones) {
-        for (const r of radios) {
-          for (const b of batteries) {
-            if (
-              videoSystemMatches(g, d) &&
-              protocolMatches(r, d) &&
-              batteryMatchesDrone(b, d)
-            ) {
-              for (const c of chargers) {
-                if (chargerMatchesBattery(c, b)) {
-                  fallback.push({
-                    total: calculateTotal(g, d, r, c, b, prefs.style),
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    const minBudget = fallback.length
-      ? Math.min(...fallback.map((f) => f.total))
-      : Infinity;
+    const minBudget = findMinimumBudget(prefs, products, videoSystem);
     return {
       kind: "insufficient",
       minBudget,
-      message: `No encontramos un kit completo recomendable dentro de US$${prefs.budget}.`,
+      message: `No encontramos un kit completo recomendable dentro de US$${
+        prefs.budget
+      } en sistema ${videoSystemLabel(videoSystem)}.`,
     };
   }
 
-  // Prefer bundles within budget, but if none fit, return the cheapest one
-  // as an insufficient-budget response.
   const withinBudget = candidates.filter((c) => c.totalPrice <= prefs.budget);
-  const pool = withinBudget.length ? withinBudget : candidates;
 
-  pool.sort((a, b) => b.score - a.score);
-  const chosen = pool[0];
-
-  if (!withinBudget.length) {
+  if (withinBudget.length === 0) {
+    const cheapest = candidates
+      .slice()
+      .sort((a, b) => a.totalPrice - b.totalPrice)[0];
     return {
       kind: "insufficient",
-      minBudget: chosen.totalPrice,
-      message: `No encontramos un kit completo recomendable dentro de US$${prefs.budget}.`,
+      minBudget: cheapest.totalPrice,
+      message: `No encontramos un kit completo recomendable dentro de US$${
+        prefs.budget
+      } en sistema ${videoSystemLabel(videoSystem)}.`,
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { score, ...rest } = chosen;
-  rest.explanation = buildExplanation(rest, prefs, videoSystem);
-  return { kind: "kit", kit: rest };
+  withinBudget.sort((a, b) => b.score - a.score);
+  const chosen = withinBudget[0];
+  chosen.explanation = buildExplanation(chosen, prefs, videoSystem);
+
+  return { kind: "kit", kit: chosen };
 }
 
-function buildExplanation(
-  kit: KitBundle,
+export function recommendKit(
   prefs: UserPreferences,
-  videoSystem: VideoSystem
-): string {
-  const parts: string[] = [];
-  if (prefs.videoSystem === "recommend") {
-    parts.push(
-      `Elegimos sistema ${videoSystemLabel(videoSystem)} porque equilibra tu presupuesto y experiencia.`
+  products: Product[]
+): RecommendationResult {
+  const systems: VideoSystem[] =
+    prefs.videoSystem === "recommend" ? ["analog", "dji_o4"] : [prefs.videoSystem];
+
+  const results = systems.map((system) => ({
+    system,
+    result: recommendKitForSystem(prefs, products, system),
+  }));
+
+  const kits = results
+    .filter((r) => r.result.kind === "kit")
+    .map((r) => r.result as Extract<RecommendationResult, { kind: "kit" }>);
+
+  const insufficient = results
+    .filter((r) => r.result.kind === "insufficient")
+    .map(
+      (r) => r.result as Extract<RecommendationResult, { kind: "insufficient" }>
     );
-  } else {
-    parts.push(
-      `Kit optimizado para ${videoSystemLabel(videoSystem)} y estilo ${labelStyle(prefs.style)}.`
-    );
+
+  if (kits.length > 0) {
+    kits.sort((a, b) => (b.kit.score ?? 0) - (a.kit.score ?? 0));
+    return kits[0];
   }
 
-  if (prefs.experience === "beginner") {
-    parts.push("Priorizamos facilidad de uso, disponibilidad de repuestos y configuración sencilla.");
-  } else if (prefs.experience === "advanced") {
-    parts.push("Priorizamos rendimiento, latencia y componentes de mayor calidad.");
-  }
-
-  parts.push(
-    `El ${kit.drone.name} encaja en tu presupuesto mientras mantiene compatibilidad total con gafas, radio y baterías.`
-  );
-
-  return parts.join(" ");
-}
-
-function labelStyle(style: FlightStyle): string {
-  const labels: Record<FlightStyle, string> = {
-    tinywhoop: "Tinywhoop/interiores",
-    freestyle: "Freestyle",
-    cinematic: "Cinemático",
-    longRange: "Long Range",
-    racing: "Racing",
+  const minBudget = insufficient.length
+    ? Math.min(...insufficient.map((i) => i.minBudget))
+    : Infinity;
+  return {
+    kind: "insufficient",
+    minBudget,
+    message: `No existe una configuración completa recomendable dentro de este presupuesto. El mínimo recomendado es aproximadamente US$${minBudget}.`,
   };
-  return labels[style];
 }
