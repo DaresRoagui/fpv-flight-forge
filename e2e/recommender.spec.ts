@@ -15,13 +15,13 @@ test.describe("FPV recommender", () => {
     await page.getByRole("button", { name: /Analog/i }).click();
 
     await expect(page.getByText(/Your kit/i)).toBeVisible();
-    await expect(page.getByText(/Total/i)).toBeVisible();
+    await expect(page.getByText('Total', { exact: true }).first()).toBeVisible();
 
-    await expect(page.getByText(/Drone/i)).toBeVisible();
-    await expect(page.getByText(/Goggles/i)).toBeVisible();
-    await expect(page.getByText('Radio', { exact: true })).toBeVisible();
-    await expect(page.getByText(/Charger/i)).toBeVisible();
-    await expect(page.getByText(/Batteries/i)).toBeVisible();
+    await expect(page.getByText('Drone', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Goggles', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Radio', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Charger', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Batteries', { exact: true }).first()).toBeVisible();
   });
 
   test("shows details modal", async ({ page }) => {
