@@ -22,9 +22,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www.droneauthority.co.uk" },
     ],
   },
-  ...(process.env.STATIC_EXPORT === "1"
-    ? { output: "export", distDir: "dist" }
-    : {}),
+  output: "export",
+  distDir: "dist",
 };
 
 export default nextConfig;
