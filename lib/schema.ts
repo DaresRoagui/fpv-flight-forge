@@ -87,4 +87,4 @@ export type KitBundle = {
 
 export type RecommendationResult =
   | { kind: "kit"; kit: KitBundle }
-  | { kind: "insufficient"; minBudget: number; message: string };
+  | { kind: "insufficient"; minBudget: number; message: string; kit?: KitBundle };

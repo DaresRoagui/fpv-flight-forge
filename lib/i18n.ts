@@ -28,11 +28,14 @@ export function formatPrice(
 
   const useCompact = compact && value >= 1_000_000;
 
+  const fractionDigits = useCompact ? 2 : 0;
+
   const formatter = new Intl.NumberFormat(currency === "cop" ? "es-CO" : "en-US", {
     style: "currency",
     currency: currency === "cop" ? "COP" : "USD",
     currencyDisplay: "code",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
     notation: useCompact ? "compact" : "standard",
     compactDisplay: "short",
   });
@@ -137,7 +140,8 @@ export const DICTIONARY = {
       title: "Presupuesto insuficiente",
       description:
         "No pudimos armar un kit {style} con video {videoSystem} dentro de {budget}.",
-      minBudget: "Intenta aumentar tu presupuesto a al menos {minBudget}.",
+      minBudget: "Configuración mínima desde {minBudget}.",
+      notice: "Te mostramos la configuración más económica que cumple tu selección.",
     },
     labels: {
       drone: "Dron",
@@ -292,7 +296,8 @@ export const DICTIONARY = {
       title: "Budget too tight",
       description:
         "We could not build a compatible {style} kit with {videoSystem} video within {budget}.",
-      minBudget: "Try raising your budget to at least {minBudget}.",
+      minBudget: "Minimum configuration from {minBudget}.",
+      notice: "Here is the most affordable configuration that matches your selection.",
     },
     labels: {
       drone: "Drone",

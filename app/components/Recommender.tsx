@@ -118,7 +118,6 @@ export function Recommender() {
             result={result}
             prefs={prefs}
             onRestart={restart}
-            onBack={() => setStep(steps.length - 1)}
             onDetail={setDetailProduct}
           />
         ) : (
@@ -342,18 +341,16 @@ function ResultView({
   result,
   prefs,
   onRestart,
-  onBack,
   onDetail,
 }: {
   result: RecommendationResult;
   prefs: UserPreferences;
   onRestart: () => void;
-  onBack: () => void;
   onDetail: (product: Product) => void;
 }) {
   const { t, formatPrice } = useLocale();
 
-  if (result.kind === "insufficient") {
+  if (result.kind === "insufficient" && !result.kit) {
     return (
       <motion.div
         key="insufficient"
@@ -377,29 +374,22 @@ function ResultView({
             minBudget: formatPrice(result.minBudget, { compact: true }),
           })}
         </p>
-        <div className="mt-10 flex gap-4">
-          <button
-            onClick={onBack}
-            className="inline-flex h-12 items-center justify-center rounded-full border border-zinc-200 px-6 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50"
-          >
-            {t("buttons.changeBudget")}
-          </button>
-          <button
-            onClick={onRestart}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-zinc-900 px-6 text-sm font-medium text-white transition hover:bg-zinc-800"
-          >
-            {t("buttons.startOver")}
-          </button>
-        </div>
+        <button
+          onClick={onRestart}
+          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-zinc-900 px-8 text-lg font-medium text-white transition hover:bg-zinc-800"
+        >
+          {t("buttons.startOver")}
+        </button>
       </motion.div>
     );
   }
 
-  const bundle = result.kit as KitBundle;
+  const bundle = (result.kind === "kit" ? result.kit : result.kit) as KitBundle;
+  const isInsufficient = result.kind === "insufficient";
 
   return (
     <motion.div
-      key="result"
+      key={isInsufficient ? "insufficient-kit" : "result"}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
@@ -407,12 +397,29 @@ function ResultView({
     >
       <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <h2 data-testid="result-title" className="text-3xl font-semibold tracking-tight text-zinc-900 md:text-4xl">
-            {t("result.title")}
+          <h2
+            data-testid={isInsufficient ? "insufficient-title" : "result-title"}
+            className="text-3xl font-semibold tracking-tight text-zinc-900 md:text-4xl"
+          >
+            {isInsufficient ? t("insufficient.title") : t("result.title")}
           </h2>
           <p className="mt-2 text-zinc-600">
-            {t("result.description", { style: t(`styleLabel.${prefs.style}`) })}
+            {isInsufficient
+              ? t("insufficient.description", {
+                  style: t(`styleLabel.${prefs.style}`),
+                  videoSystem: t(`videoSystem.${prefs.videoSystem === "recommend" ? "analog" : prefs.videoSystem}`),
+                  budget: formatPrice(prefs.budget, { compact: true }),
+                })
+              : t("result.description", { style: t(`styleLabel.${prefs.style}`) })}
           </p>
+          {isInsufficient && (
+            <p className="mt-2 text-zinc-600">
+              {t("insufficient.notice")}{" "}
+              {t("insufficient.minBudget", {
+                minBudget: formatPrice(result.minBudget, { compact: true }),
+              })}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <div className="text-sm text-zinc-500">{t("composition.total")}</div>

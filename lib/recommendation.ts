@@ -124,42 +124,6 @@ function scoreBundle(bundle: ScoredBundle, prefs: UserPreferences): number {
   );
 }
 
-function findMinimumBudget(
-  prefs: UserPreferences,
-  products: Product[],
-  videoSystem: VideoSystem
-): number {
-  const goggles = products.filter(
-    (p) => p.category === "goggles" && p.videoSystems.includes(videoSystem)
-  );
-  const drones = products.filter(
-    (p) =>
-      p.category === "drone" &&
-      p.videoSystems.includes(videoSystem) &&
-      flightStyleMatches(p, prefs.style)
-  );
-  const radios = products.filter((p) => p.category === "radio");
-  const chargers = products.filter((p) => p.category === "charger");
-  const batteries = products.filter((p) => p.category === "battery");
-
-  let min = Infinity;
-  for (const g of goggles) {
-    for (const d of drones) {
-      for (const r of radios) {
-        for (const b of batteries) {
-          if (!batteryMatchesDrone(b, d)) continue;
-          for (const c of chargers) {
-            if (!chargerMatchesBattery(c, b)) continue;
-            const total = calculateTotal(g, d, r, c, b, prefs.style);
-            if (total < min) min = total;
-          }
-        }
-      }
-    }
-  }
-  return min;
-}
-
 function recommendKitForSystem(
   prefs: UserPreferences,
   products: Product[],
@@ -212,10 +176,9 @@ function recommendKitForSystem(
   }
 
   if (candidates.length === 0) {
-    const minBudget = findMinimumBudget(prefs, products, videoSystem);
     return {
       kind: "insufficient",
-      minBudget,
+      minBudget: Infinity,
       message: `No encontramos un kit completo recomendable dentro de US$$${
         prefs.budget
       } en sistema ${videoSystemLabel(videoSystem)}.`,
@@ -232,6 +195,7 @@ function recommendKitForSystem(
       message: `No encontramos un kit completo recomendable dentro de US$$${
         prefs.budget
       } en sistema ${videoSystemLabel(videoSystem)}.`,
+      kit: cheapest,
     };
   }
 
@@ -269,12 +233,17 @@ export function recommendKit(
     return kits[0];
   }
 
-  const minBudget = insufficient.length
-    ? Math.min(...insufficient.map((i) => i.minBudget))
-    : Infinity;
+  const feasible = insufficient
+    .filter((r) => Number.isFinite(r.minBudget))
+    .sort((a, b) => a.minBudget - b.minBudget);
+
+  if (feasible.length > 0) {
+    return feasible[0];
+  }
+
   return {
     kind: "insufficient",
-    minBudget,
-    message: `No existe una configuración completa recomendable dentro de este presupuesto. El mínimo recomendado es aproximadamente US$${minBudget}.`,
+    minBudget: Infinity,
+    message: `No existe una configuración completa recomendable dentro de este presupuesto.`,
   };
 }
