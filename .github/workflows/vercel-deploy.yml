@@ -8,7 +8,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -21,4 +20,9 @@ jobs:
       - run: npm ci
       - run: npm install -g vercel@latest
       - name: Deploy to Vercel (production)
-        run: vercel --yes --prod --token "$VERCEL_TOKEN"
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Vercel secrets are not configured yet; skipping deploy." >&2
+            exit 0
+          fi
+          vercel --yes --prod --token "$VERCEL_TOKEN"
