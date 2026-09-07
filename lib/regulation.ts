@@ -78,11 +78,10 @@ export function assessRegulation(
     const threshold = 250;
     if (estimatedTakeoffWeightG < threshold) {
       assessment.status = "A1_WEIGHT_ADVANTAGE";
-      assessment.warningKeys.push("REGULATORY_THRESHOLD_CROSSED"); // operator registration generally required with camera
       assessment.badgeKey = "regulation.euSub250";
     } else {
       assessment.status = "OPERATOR_REGISTRATION_REQUIRED";
-      assessment.badgeKey = "regulation.euSub250";
+      assessment.badgeKey = "regulation.euRegistration";
     }
   } else {
     assessment.status = "UNKNOWN";

@@ -19,7 +19,7 @@ export const PRODUCT_OVERRIDES: Record<string, ProductOverride> = {
       battery: {
         cellsAllowed: [1],
         chemistriesAllowed: ["LiPo", "LiHV"],
-        capacityMah: { min: 250, idealMin: 280, idealMax: 380, max: 450 },
+        capacityMah: { min: 250, idealMin: 280, idealMax: 500, max: 500 },
         maxBatteryWeightG: 20,
         connector: "BT2.0",
       },
@@ -42,7 +42,7 @@ export const PRODUCT_OVERRIDES: Record<string, ProductOverride> = {
       battery: {
         cellsAllowed: [1],
         chemistriesAllowed: ["LiPo", "LiHV"],
-        capacityMah: { min: 250, idealMin: 280, idealMax: 380, max: 450 },
+        capacityMah: { min: 250, idealMin: 280, idealMax: 500, max: 500 },
         maxBatteryWeightG: 18,
         connector: "BT2.0",
       },

@@ -80,6 +80,7 @@
       "usPart107": "Part 107: registro requerido independientemente del peso.*",
       "usTrust": "En EE. UU., <250 g puede evitar el registro en vuelo exclusivamente recreativo, pero TRUST sigue siendo obligatorio.",
       "euSub250": "<250 g · ventaja de categoría A1; con cámara FPV normalmente debes registrarte como operador.*",
+      "euRegistration": "{{weight}} g · registro como operador UAS requerido en la mayoría de los estados miembros de EASA*",
       "thresholdCrossedBattery": "Esta batería aumenta el peso listo para volar a {{weight}} g y cruza el umbral regulatorio de {{threshold}} g.",
       "infoStale": "La información regulatoria debería volver a verificarse con la autoridad oficial.",
       "noStrongSubThreshold": "No encontramos una recomendación fuerte para este estilo que se mantenga por debajo del umbral de peso seleccionado."

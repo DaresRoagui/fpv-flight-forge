@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { recommendKit } from "@/lib/recommendation";
@@ -125,6 +125,19 @@ export function Recommender() {
     setResult(recommendKit(updated, products));
     setStep((s) => s + 1);
   }
+
+  const prevRegionRef = useRef(regulatoryRegion);
+  useEffect(() => {
+    if (!result) {
+      prevRegionRef.current = regulatoryRegion;
+      return;
+    }
+    if (regulatoryRegion === prevRegionRef.current) return;
+    prevRegionRef.current = regulatoryRegion;
+    const updated = { ...prefs, regulatoryRegion: regulatoryRegion ?? "OTHER" } as UserPreferences;
+    setPrefs(updated);
+    setResult(recommendKit(updated, products));
+  }, [regulatoryRegion, products, prefs, result]);
 
   const localizedDetail = detailProduct ? detailProduct : null;
 

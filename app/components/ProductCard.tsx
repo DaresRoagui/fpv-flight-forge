@@ -32,8 +32,7 @@ export function ProductCard({
     localized.images[0] || fallbackImage(product.category)
   );
 
-  const displayPrice =
-    quantity && quantity > 1 ? localized.priceUsd * quantity : localized.priceUsd;
+  const unitPrice = localized.priceUsd;
 
   return (
     <div
@@ -69,11 +68,13 @@ export function ProductCard({
         <h3 className="mt-1 text-lg font-semibold text-zinc-900">{localized.name}</h3>
         <div className="mt-auto flex items-center justify-between pt-4">
           <div className="text-lg font-semibold text-zinc-900">
-            {!includedInPrice && !referenceOnly ? `${t("scope.alreadyOwned")} · ` : ""}
-            {quantity && quantity > 1 ? `${quantity} × ` : ""}
-            {referenceOnly
+            {!includedInPrice && !referenceOnly
+              ? t("scope.alreadyOwned")
+              : referenceOnly
               ? `+ ${formatPrice(product.priceUsd, { compact: true })}`
-              : formatPrice(displayPrice, { compact: true })}
+              : quantity && quantity > 1
+              ? `${quantity} × ${formatPrice(unitPrice, { compact: true })}`
+              : formatPrice(unitPrice, { compact: true })}
           </div>
           <button
             data-testid="product-card-details"
