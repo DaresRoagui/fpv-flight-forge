@@ -5,6 +5,36 @@ import Image from "next/image";
 import { Product } from "@/lib/schema";
 import { useLocale } from "@/app/components/LocaleProvider";
 
+function fallbackImage(category: string): string {
+  return `/images/${category}.svg`;
+}
+
+function ModalImage({
+  src,
+  fallback,
+  alt,
+  className,
+  sizes,
+}: {
+  src: string;
+  fallback: string;
+  alt: string;
+  className: string;
+  sizes: string;
+}) {
+  const [hasFailed, setHasFailed] = useState(false);
+  return (
+    <Image
+      src={hasFailed ? fallback : src}
+      alt={alt}
+      fill
+      className={className}
+      sizes={sizes}
+      onError={() => setHasFailed(true)}
+    />
+  );
+}
+
 export function ProductModal({
   product,
   onClose,
@@ -19,6 +49,9 @@ export function ProductModal({
 
   const localized = localizeProduct(product);
   const buyUrl = localized.affiliateUrl || localized.productUrl || "#";
+
+  const currentImage = localized.images[imageIndex] || fallbackImage(product.category);
+  const fallback = fallbackImage(product.category);
 
   return (
     <div
@@ -67,10 +100,11 @@ export function ProductModal({
         <div className="mt-6 grid gap-6 md:grid-cols-[1.2fr_1fr]">
           <div>
             <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-zinc-100">
-              <Image
-                src={localized.images[imageIndex]}
+              <ModalImage
+                key={currentImage}
+                src={currentImage}
+                fallback={fallback}
                 alt={`${localized.name} - ${t("modal.photo")} ${imageIndex + 1}`}
-                fill
                 className="object-contain p-6"
                 sizes="(max-width: 768px) 100vw, 500px"
               />
@@ -85,10 +119,10 @@ export function ProductModal({
                       idx === imageIndex ? "border-zinc-900" : "border-transparent"
                     }`}
                   >
-                    <Image
+                    <ModalImage
                       src={src}
+                      fallback={fallback}
                       alt={`${localized.name} ${t("modal.thumbnail")} ${idx + 1}`}
-                      fill
                       className="object-contain p-2"
                       sizes="64px"
                     />
@@ -103,13 +137,13 @@ export function ProductModal({
               {localized.description}
             </p>
 
-            {Object.keys(localized.keySpecs).length > 0 && (
+            {localized.keySpecs && Object.keys(localized.keySpecs).length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
                   {t("modal.keySpecs")}
                 </h3>
                 <dl className="mt-3 grid grid-cols-2 gap-3">
-                  {Object.entries(localized.keySpecs).map(([k, v]) => (
+                  {Object.entries(localized.keySpecs ?? {}).map(([k, v]) => (
                     <div key={k} className="rounded-xl bg-zinc-50 p-3">
                       <dt className="text-xs font-medium uppercase text-zinc-500">{t(`keySpecs.${k}`)}</dt>
                       <dd className="mt-1 text-sm font-semibold text-zinc-900">{v}</dd>
@@ -157,16 +191,16 @@ export function ProductModal({
                 </div>
                 <div>
                   <span className="font-semibold text-zinc-900">{t("modal.availability")}:</span>{" "}
-                  {t(`availability.${localized.availability}`)}
+                  {t(`availability.${localized.availability ?? "unknown"}`)}
                 </div>
                 <div>
                   <span className="font-semibold text-zinc-900">{t("modal.verified")}:</span>{" "}
                   {localized.verifiedAt || "—"}
                 </div>
-                {localized.sources.length > 0 && (
+                {(localized.sources ?? []).length > 0 && (
                   <div>
                     <span className="font-semibold text-zinc-900">{t("modal.sources")}:</span>{" "}
-                    {localized.sources.join("; ")}
+                    {(localized.sources ?? []).join("; ")}
                   </div>
                 )}
               </div>
