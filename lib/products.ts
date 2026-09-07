@@ -1,5 +1,16 @@
 import { productSchema, Product, ProductCategory } from "@/lib/schema";
 import { PRODUCTS } from "@/data/products";
+import { PRODUCT_OVERRIDES } from "@/lib/catalog-profiles";
+
+function mergeProductOverrides(products: Product[]): Product[] {
+  return products.map((product) => {
+    const override = PRODUCT_OVERRIDES[product.id];
+    if (!override) return product;
+    return { ...product, ...override } as Product;
+  });
+}
+
+const MERGED_PRODUCTS: Product[] = mergeProductOverrides(PRODUCTS);
 
 export function validateProducts(products: unknown[]): Product[] {
   return products.map((p, i) => {
@@ -14,13 +25,13 @@ export function validateProducts(products: unknown[]): Product[] {
 }
 
 export function getProducts(): Product[] {
-  return PRODUCTS;
+  return MERGED_PRODUCTS;
 }
 
 export function getProductsByCategory(category: ProductCategory): Product[] {
-  return PRODUCTS.filter((p) => p.category === category);
+  return MERGED_PRODUCTS.filter((p) => p.category === category);
 }
 
 export function getProductById(id: string): Product | undefined {
-  return PRODUCTS.find((p) => p.id === id);
+  return MERGED_PRODUCTS.find((p) => p.id === id);
 }
