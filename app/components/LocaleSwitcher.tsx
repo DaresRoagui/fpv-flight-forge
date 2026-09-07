@@ -2,9 +2,10 @@
 
 import { useLocale } from "@/app/components/LocaleProvider";
 import type { Locale, Currency } from "@/lib/i18n";
+import type { RegulatoryRegion } from "@/lib/schema";
 
 export function LocaleSwitcher() {
-  const { locale, setLocale, currency, setCurrency, t } = useLocale();
+  const { locale, setLocale, currency, setCurrency, regulatoryRegion, setRegulatoryRegion, t } = useLocale();
 
   return (
     <div className="flex items-center gap-2">
@@ -32,6 +33,21 @@ export function LocaleSwitcher() {
       >
         <option value="usd">USD</option>
         <option value="cop">COP</option>
+      </select>
+
+      <label htmlFor="region-select" className="sr-only">
+        {t("header.region")}
+      </label>
+      <select
+        id="region-select"
+        value={regulatoryRegion}
+        onChange={(e) => setRegulatoryRegion(e.target.value as RegulatoryRegion)}
+        className="h-9 rounded-full border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 focus:border-zinc-900 focus:outline-none"
+      >
+        <option value="CO">CO</option>
+        <option value="US">US</option>
+        <option value="EU_EASA">EU</option>
+        <option value="OTHER">--</option>
       </select>
     </div>
   );

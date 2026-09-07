@@ -1,4 +1,5 @@
 import { PRODUCT_TRANSLATIONS } from "@/lib/product-translations";
+import { CATALOG_V2 } from "@/lib/catalog-i18n";
 import { Product } from "@/lib/schema";
 
 export type Locale = "es" | "en";
@@ -59,10 +60,15 @@ function getDictValue(obj: unknown, path: string[]): string | undefined {
 
 function resolveKey(locale: Locale, key: string): string | undefined {
   const path = key.split(".");
-  const value = getDictValue(DICTIONARY[locale], path);
-  if (value) return value;
+  const fromMain = getDictValue(DICTIONARY[locale], path);
+  if (fromMain) return fromMain;
+  const fromCatalog = getDictValue(CATALOG_V2[locale], path);
+  if (fromCatalog) return fromCatalog;
   const fallbackLocale = locale === "es" ? "en" : "es";
-  return getDictValue(DICTIONARY[fallbackLocale], path);
+  return (
+    getDictValue(DICTIONARY[fallbackLocale], path) ??
+    getDictValue(CATALOG_V2[fallbackLocale], path)
+  );
 }
 
 export function t(locale: Locale, key: string, params?: Record<string, string | number>): string {
@@ -90,7 +96,7 @@ export function getLocalizedProduct(product: Product, locale: Locale): Product {
 export const DICTIONARY = {
   es: {
     app: { title: "FPV Flight Forge" },
-    header: { language: "Idioma", currency: "Moneda" },
+    header: { language: "Idioma", currency: "Moneda", region: "Normativa" },
     welcome: {
       title: "Arma tu kit FPV perfecto",
       description:
@@ -132,6 +138,31 @@ export const DICTIONARY = {
         recommend: { label: "Recomendar", desc: "El mejor para mi presupuesto" },
       },
     },
+    scope: {
+      question: "¿Qué quieres que te recomendemos?",
+      FULL_KIT: "Kit completo",
+      DRONE_ONLY: "Solo el dron",
+      COMPLETE_EXISTING_SETUP: "Completar / mejorar lo que ya tengo",
+      ownedQuestion: "¿Qué equipo ya tienes?",
+      alreadyOwned: "Ya lo tienes",
+      toBuy: "Por comprar",
+    },
+    advancedPriority: {
+      title: "Prioridad avanzada",
+      BALANCED: "Equilibrado",
+      LOW_LATENCY: "Menor latencia",
+      IMAGE_QUALITY: "Mejor imagen",
+      VALUE: "Mejor relación calidad-precio",
+      PORTABILITY: "Portabilidad",
+      FLIGHT_TIME: "Autonomía",
+      REPAIRABILITY: "Reparabilidad",
+    },
+    environment: {
+      question: "¿Dónde lo vas a volar principalmente?",
+      INDOOR_TIGHT: "Interior / espacios cerrados",
+      MIXED: "Mixto",
+      OUTDOOR: "Exterior",
+    },
     result: {
       title: "Tu kit",
       description: "Configuración completa y compatible para volar {style}.",
@@ -148,6 +179,7 @@ export const DICTIONARY = {
       goggles: "Gafas",
       radio: "Radio",
       charger: "Cargador",
+      battery: "Batería",
       batteries: "Baterías",
     },
     composition: { total: "Total" },
@@ -181,6 +213,7 @@ export const DICTIONARY = {
     },
     videoSystem: {
       analog: "Analógico",
+      dji_o3: "DJI O3",
       dji_o4: "DJI O4",
       hdzero: "HDZero",
       walksnail: "Walksnail",
@@ -246,7 +279,7 @@ export const DICTIONARY = {
   },
   en: {
     app: { title: "FPV Flight Forge" },
-    header: { language: "Language", currency: "Currency" },
+    header: { language: "Language", currency: "Currency", region: "Regulations" },
     welcome: {
       title: "Build your perfect FPV kit",
       description:
@@ -288,6 +321,31 @@ export const DICTIONARY = {
         recommend: { label: "Recommend", desc: "Best for my budget" },
       },
     },
+    scope: {
+      question: "What should we recommend?",
+      FULL_KIT: "Full kit",
+      DRONE_ONLY: "Drone only",
+      COMPLETE_EXISTING_SETUP: "Complete / upgrade existing gear",
+      ownedQuestion: "What gear do you already own?",
+      alreadyOwned: "Already owned",
+      toBuy: "To buy",
+    },
+    advancedPriority: {
+      title: "Advanced priority",
+      BALANCED: "Balanced",
+      LOW_LATENCY: "Low latency",
+      IMAGE_QUALITY: "Best image",
+      VALUE: "Best value",
+      PORTABILITY: "Portability",
+      FLIGHT_TIME: "Flight time",
+      REPAIRABILITY: "Repairability",
+    },
+    environment: {
+      question: "Where will you fly most?",
+      INDOOR_TIGHT: "Indoor / tight spaces",
+      MIXED: "Mixed",
+      OUTDOOR: "Outdoor",
+    },
     result: {
       title: "Your kit",
       description: "Complete, compatible setup tuned for {style} flying.",
@@ -304,6 +362,7 @@ export const DICTIONARY = {
       goggles: "Goggles",
       radio: "Radio",
       charger: "Charger",
+      battery: "Battery",
       batteries: "Batteries",
     },
     composition: { total: "Total" },
@@ -337,6 +396,7 @@ export const DICTIONARY = {
     },
     videoSystem: {
       analog: "Analog",
+      dji_o3: "DJI O3",
       dji_o4: "DJI O4",
       hdzero: "HDZero",
       walksnail: "Walksnail",

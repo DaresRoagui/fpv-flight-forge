@@ -19,13 +19,15 @@ import {
   getLocalizedProduct,
   type FormatPriceOptions,
 } from "@/lib/i18n";
-import { Product } from "@/lib/schema";
+import { Product, RegulatoryRegion } from "@/lib/schema";
 
 interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   currency: Currency;
   setCurrency: (currency: Currency) => void;
+  regulatoryRegion: RegulatoryRegion;
+  setRegulatoryRegion: (region: RegulatoryRegion) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
   formatPrice: (valueUsd: number, options?: FormatPriceOptions) => string;
   localizeProduct: (product: Product) => Product;
@@ -35,8 +37,12 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 const LOCALE_KEY = "fpv-locale";
 const CURRENCY_KEY = "fpv-currency";
+const REGION_KEY = "fpv_regulatory_region";
 const LOCALE_CHANGE = "fpv-locale-change";
 const CURRENCY_CHANGE = "fpv-currency-change";
+const REGION_CHANGE = "fpv-regulatory-region-change";
+
+const DEFAULT_REGION: RegulatoryRegion = "CO";
 
 function isLocale(value: string | null): value is Locale {
   return value === "es" || value === "en";
@@ -44,6 +50,12 @@ function isLocale(value: string | null): value is Locale {
 
 function isCurrency(value: string | null): value is Currency {
   return value === "usd" || value === "cop";
+}
+
+const REGIONS: RegulatoryRegion[] = ["CO", "US", "EU_EASA", "OTHER"];
+
+function isRegulatoryRegion(value: string | null): value is RegulatoryRegion {
+  return value !== null && (REGIONS as string[]).includes(value);
 }
 
 function readLocale(): Locale {
@@ -66,6 +78,16 @@ function readCurrency(): Currency {
   }
 }
 
+function readRegion(): RegulatoryRegion {
+  if (typeof window === "undefined") return DEFAULT_REGION;
+  try {
+    const stored = localStorage.getItem(REGION_KEY);
+    return isRegulatoryRegion(stored) ? stored : DEFAULT_REGION;
+  } catch {
+    return DEFAULT_REGION;
+  }
+}
+
 function subscribeLocale(callback: () => void) {
   if (typeof window === "undefined") return () => {};
   const handler = () => callback();
@@ -78,6 +100,13 @@ function subscribeCurrency(callback: () => void) {
   const handler = () => callback();
   window.addEventListener(CURRENCY_CHANGE, handler);
   return () => window.removeEventListener(CURRENCY_CHANGE, handler);
+}
+
+function subscribeRegion(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => callback();
+  window.addEventListener(REGION_CHANGE, handler);
+  return () => window.removeEventListener(REGION_CHANGE, handler);
 }
 
 function writeLocale(locale: Locale) {
@@ -101,25 +130,32 @@ function writeCurrency(currency: Currency) {
   }
 }
 
+function writeRegion(region: RegulatoryRegion) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(REGION_KEY, region);
+    window.dispatchEvent(new Event(REGION_CHANGE));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function useStoredLocale(): Locale {
-  return useSyncExternalStore(
-    subscribeLocale,
-    readLocale,
-    () => DEFAULT_LOCALE
-  );
+  return useSyncExternalStore(subscribeLocale, readLocale, () => DEFAULT_LOCALE);
 }
 
 function useStoredCurrency(): Currency {
-  return useSyncExternalStore(
-    subscribeCurrency,
-    readCurrency,
-    () => DEFAULT_CURRENCY
-  );
+  return useSyncExternalStore(subscribeCurrency, readCurrency, () => DEFAULT_CURRENCY);
+}
+
+function useStoredRegion(): RegulatoryRegion {
+  return useSyncExternalStore(subscribeRegion, readRegion, () => DEFAULT_REGION);
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const locale = useStoredLocale();
   const currency = useStoredCurrency();
+  const regulatoryRegion = useStoredRegion();
 
   useEffect(() => {
     try {
@@ -135,6 +171,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const setCurrency = useCallback((value: Currency) => {
     writeCurrency(value);
+  }, []);
+
+  const setRegulatoryRegion = useCallback((value: RegulatoryRegion) => {
+    writeRegion(value);
   }, []);
 
   const tBound = useCallback(
@@ -158,11 +198,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setLocale,
       currency,
       setCurrency,
+      regulatoryRegion,
+      setRegulatoryRegion,
       t: tBound,
       formatPrice: formatPriceBound,
       localizeProduct,
     }),
-    [locale, setLocale, currency, setCurrency, tBound, formatPriceBound, localizeProduct]
+    [locale, setLocale, currency, setCurrency, regulatoryRegion, setRegulatoryRegion, tBound, formatPriceBound, localizeProduct]
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
