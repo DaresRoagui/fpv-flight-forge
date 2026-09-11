@@ -132,6 +132,7 @@ export const aircraftProfileSchema = z.object({
   flightRoles: z.array(z.string()).default([]),
   video: z.object({
     system: videoSystemSchema,
+    unit: z.string().optional(),
   }),
   control: z.object({
     protocol: controlProtocolSchema,
@@ -156,6 +157,7 @@ export const aircraftProfileSchema = z.object({
     gpsIncluded: z.boolean().default(false),
     selfPoweredBuzzerIncluded: z.boolean().default(false),
   }).default({ gpsIncluded: false, selfPoweredBuzzerIncluded: false }),
+  dryWeightG: z.number().nonnegative().optional(),
   payloadWeightG: z.number().nonnegative().optional(),
   mandatoryOnboardWeightG: z.number().nonnegative().optional(),
 });
@@ -281,41 +283,38 @@ export type Reason = {
   params?: Record<string, string | number>;
 };
 
-export type RegulatoryStatus =
-  | "NO_REGISTRATION_BY_WEIGHT"
-  | "REGISTRATION_REQUIRED"
-  | "OPERATOR_REGISTRATION_REQUIRED"
-  | "A1_WEIGHT_ADVANTAGE"
-  | "UNKNOWN";
-
-export type RegulatoryAssessment = {
-  jurisdiction: RegulatoryRegion;
-  operationPurpose: OperationPurpose;
-  estimatedTakeoffWeightG: number | null;
-  weightThresholdG: number | null;
-  status: RegulatoryStatus;
-  warningKeys: WarningType[];
-  badgeKey: string;
-  detailKeys: string[];
-};
-
 export type BundleItem = {
   category: ProductCategory;
   product: Product;
   owned: boolean;
   includedInPrice: boolean;
   referenceOnly?: boolean;
-  quantity?: number;
+};
+
+export type RegulatoryAssessment = {
+  region: RegulatoryRegion;
+  purpose: OperationPurpose;
+  estimatedTakeoffWeightG: number | null;
+  weightThresholdG: number | null;
+  status:
+    | "NO_REGISTRATION_BY_WEIGHT"
+    | "REGISTRATION_REQUIRED"
+    | "REGISTRATION_STILL_APPLIES"
+    | "LIGHTWEIGHT_BENEFIT"
+    | "CHECK_LOCAL_RULES"
+    | "UNKNOWN_WEIGHT";
+  messageKey: string;
+  warnings: Warning[];
 };
 
 export type KitBundle = {
   scope: RecommendationScope;
   drone: Product;
-  battery: Product;
-  batteryQuantity: number;
   goggles?: Product;
   radio?: Product;
   charger?: Product;
+  battery: Product;
+  batteryQuantity: number;
   items: BundleItem[];
   totalPrice: number;
   corePrice: number;
@@ -324,10 +323,9 @@ export type KitBundle = {
   explanation: string;
   reasons: Reason[];
   warnings: Warning[];
-  score?: number;
   regulatory?: RegulatoryAssessment;
 };
 
 export type RecommendationResult =
-  | { kind: "kit"; kit: KitBundle }
+  | { kind: "kit"; kit: KitBundle; alternatives?: KitBundle[] }
   | { kind: "insufficient"; minBudget: number; message: string; kit?: KitBundle };
