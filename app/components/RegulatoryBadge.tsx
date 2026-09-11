@@ -16,19 +16,16 @@ function regionLabelKey(region: string): string {
   }
 }
 
-export function RegulatoryBadge({
-  bundle,
-}: {
-  bundle: KitBundle;
-}) {
+export function RegulatoryBadge({ bundle }: { bundle: KitBundle }) {
   const { t } = useLocale();
   const reg = bundle.regulatory;
   if (!reg) return null;
 
   const weight =
-    reg.estimatedTakeoffWeightG !== null ? Math.round(reg.estimatedTakeoffWeightG).toString() : t("regulation.unknownWeight");
+    reg.estimatedTakeoffWeightG !== null
+      ? Math.round(reg.estimatedTakeoffWeightG).toString()
+      : t("regulation.unknownWeight");
   const threshold = reg.weightThresholdG !== null ? reg.weightThresholdG.toString() : "";
-
   const params = { weight, threshold };
 
   return (
@@ -38,19 +35,19 @@ export function RegulatoryBadge({
           {t("regulation.title")}
         </span>
         <span className="text-xs font-medium text-zinc-700">
-          {t(regionLabelKey(reg.jurisdiction))}
+          {t(regionLabelKey(reg.region))}
         </span>
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-2xl font-semibold text-zinc-900">{weight} g</span>
         <span className="text-sm text-zinc-500">{t("regulation.readyToFlyWeight")}</span>
       </div>
-      <p className="mt-2 text-sm text-zinc-700">{t(reg.badgeKey, params)}</p>
-      {reg.detailKeys.length > 0 && (
+      <p className="mt-2 text-sm text-zinc-700">{t(reg.messageKey, params)}</p>
+      {reg.warnings.length > 0 && (
         <ul className="mt-3 space-y-1">
-          {reg.detailKeys.map((key, idx) => (
-            <li key={`${key}-${idx}`} className="text-xs text-zinc-500">
-              {t(key, params)}
+          {reg.warnings.map((warning, idx) => (
+            <li key={`${warning.type}-${idx}`} className="text-xs text-zinc-500">
+              {t(warning.messageKey, warning.params ?? params)}
             </li>
           ))}
         </ul>
