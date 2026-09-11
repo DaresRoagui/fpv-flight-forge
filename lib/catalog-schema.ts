@@ -59,4 +59,6 @@ export const curatedDroneRecordSchema = z.object({
   aircraftProfile: aircraftProfileSchema.optional(),
 });
 
-export type CuratedDroneRecord = z.infer<typeof curatedDroneRecordSchema>;
+/** Raw/source records may omit fields that Zod supplies with defaults. */
+export type CuratedDroneRecord = z.input<typeof curatedDroneRecordSchema>;
+export type ParsedCuratedDroneRecord = z.output<typeof curatedDroneRecordSchema>;
