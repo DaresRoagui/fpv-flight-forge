@@ -60,7 +60,7 @@ test.describe("FPV recommender smoke flows", () => {
     await page.selectOption("#currency-select", "usd");
 
     await page.getByTestId("start-button").click();
-    await page.locator('input[type="range"]').fill("600");
+    await page.locator('input[type="range"]').fill("700");
     await page.getByTestId("continue-button").click();
 
     await page.getByTestId("option-experience-beginner").click();
