@@ -1,5 +1,5 @@
 import { CURATED_RECOMMENDER_DRONES } from "@/data/curated-drones";
-import { CuratedDroneRecord } from "@/lib/catalog-schema";
+import { ParsedCuratedDroneRecord } from "@/lib/catalog-schema";
 import { FlightStyle, Product } from "@/lib/schema";
 
 const SOURCE_WEIGHT_G: Record<string, number> = {
@@ -9,7 +9,7 @@ const SOURCE_WEIGHT_G: Record<string, number> = {
   "betafpv-meteor75-pro-analog": 30.5,
 };
 
-function recommendedStyles(record: CuratedDroneRecord): FlightStyle[] {
+function recommendedStyles(record: ParsedCuratedDroneRecord): FlightStyle[] {
   if (record.sourceSegment === 1) {
     if (record.id.includes("racing") || record.id.includes("champion")) return ["tinywhoop", "racing"];
     return ["tinywhoop", "freestyle"];
@@ -25,7 +25,7 @@ function recommendedStyles(record: CuratedDroneRecord): FlightStyle[] {
   return record.flightStyles;
 }
 
-function score(record: CuratedDroneRecord, key: string): number | undefined {
+function score(record: ParsedCuratedDroneRecord, key: string): number | undefined {
   const scores = record.fitScores ?? {};
   const direct = scores[key];
   if (direct !== undefined) return direct;
@@ -40,7 +40,7 @@ function connectorFamily(connector: string): string {
   return connector;
 }
 
-function toProduct(record: CuratedDroneRecord): Product {
+function toProduct(record: ParsedCuratedDroneRecord): Product {
   if (record.priceUsd === null || record.priceUsd === undefined || !record.aircraftProfile) {
     throw new Error(`Curated winner ${record.id} is missing price/profile and cannot enter runtime catalog`);
   }
