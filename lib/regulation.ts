@@ -1,9 +1,13 @@
-import { Product, RegulatoryRegion, OperationPurpose, RegulatoryAssessment } from "@/lib/schema";
+import { Product, RegulatoryRegion, OperationPurpose, RegulatoryAssessment, Warning } from "@/lib/schema";
 import { parseWeightG } from "@/lib/compat";
 
 export function getProductWeightG(product: Product): number | null {
   if (product.weightG !== undefined) return product.weightG;
   return parseWeightG(product.keySpecs?.weight);
+}
+
+function warning(type: Warning["type"], messageKey: string, params?: Record<string, string | number>): Warning {
+  return { type, messageKey, params };
 }
 
 export function assessRegulation(
@@ -24,78 +28,96 @@ export function assessRegulation(
 
   const weightThresholdG = region === "CO" ? 200 : region === "US" || region === "EU_EASA" ? 250 : null;
 
-  const assessment: RegulatoryAssessment = {
-    jurisdiction: region,
-    operationPurpose: purpose,
-    estimatedTakeoffWeightG,
-    weightThresholdG,
-    status: "UNKNOWN",
-    warningKeys: [],
-    badgeKey: "",
-    detailKeys: [],
-  };
-
   if (estimatedTakeoffWeightG === null) {
-    assessment.status = "UNKNOWN";
-    assessment.warningKeys.push("NO_EXACT_TAKEOFF_WEIGHT");
-    assessment.badgeKey = "regulation.unknownWeight";
-    return assessment;
+    return {
+      region,
+      purpose,
+      estimatedTakeoffWeightG,
+      weightThresholdG,
+      status: "UNKNOWN_WEIGHT",
+      messageKey: "regulation.unknownWeight",
+      warnings: [warning("NO_EXACT_TAKEOFF_WEIGHT", "warnings.noExactTakeoffWeight")],
+    };
   }
 
   if (region === "CO") {
-    const threshold = 200;
     if (purpose === "COMMERCIAL_OR_SPECIFIC") {
-      assessment.status = "REGISTRATION_REQUIRED";
-      assessment.warningKeys.push("REGULATORY_THRESHOLD_CROSSED");
-      assessment.badgeKey = "regulation.coCommercial";
-      assessment.detailKeys.push("regulation.coFpvObserver");
-    } else if (estimatedTakeoffWeightG < threshold) {
-      assessment.status = "NO_REGISTRATION_BY_WEIGHT";
-      assessment.badgeKey = "regulation.coSub200";
-      assessment.detailKeys.push("regulation.coFpvObserver");
-    } else {
-      assessment.status = "REGISTRATION_REQUIRED";
-      assessment.badgeKey = "regulation.coRegistration";
-      assessment.detailKeys.push("regulation.coFpvObserver");
+      return {
+        region,
+        purpose,
+        estimatedTakeoffWeightG,
+        weightThresholdG,
+        status: "REGISTRATION_REQUIRED",
+        messageKey: "regulation.coCommercial",
+        warnings: [warning("REGULATORY_THRESHOLD_CROSSED", "warnings.regulatoryThresholdCrossed")],
+      };
     }
-  } else if (region === "US") {
-    const threshold = 250;
-    if (purpose === "COMMERCIAL_OR_SPECIFIC") {
-      assessment.status = "REGISTRATION_REQUIRED";
-      assessment.warningKeys.push("REGULATORY_THRESHOLD_CROSSED");
-      assessment.badgeKey = "regulation.usPart107";
-      assessment.detailKeys.push("regulation.usTrust");
-    } else if (estimatedTakeoffWeightG < threshold) {
-      assessment.status = "NO_REGISTRATION_BY_WEIGHT";
-      assessment.badgeKey = "regulation.usSub250";
-      assessment.detailKeys.push("regulation.usTrust");
-    } else {
-      assessment.status = "REGISTRATION_REQUIRED";
-      assessment.badgeKey = "regulation.usRegistration";
-      assessment.detailKeys.push("regulation.usTrust");
-    }
-  } else if (region === "EU_EASA") {
-    const threshold = 250;
-    if (estimatedTakeoffWeightG < threshold) {
-      assessment.status = "A1_WEIGHT_ADVANTAGE";
-      assessment.badgeKey = "regulation.euSub250";
-    } else {
-      assessment.status = "OPERATOR_REGISTRATION_REQUIRED";
-      assessment.badgeKey = "regulation.euRegistration";
-    }
-  } else {
-    assessment.status = "UNKNOWN";
-    assessment.badgeKey = "regulation.unknownWeight";
+
+    return {
+      region,
+      purpose,
+      estimatedTakeoffWeightG,
+      weightThresholdG,
+      status: estimatedTakeoffWeightG < 200 ? "NO_REGISTRATION_BY_WEIGHT" : "REGISTRATION_REQUIRED",
+      messageKey: estimatedTakeoffWeightG < 200 ? "regulation.coSub200" : "regulation.coRegistration",
+      warnings: [],
+    };
   }
 
-  assessment.detailKeys.push("regulation.generalDisclaimer");
-  return assessment;
+  if (region === "US") {
+    if (purpose === "COMMERCIAL_OR_SPECIFIC") {
+      return {
+        region,
+        purpose,
+        estimatedTakeoffWeightG,
+        weightThresholdG,
+        status: "REGISTRATION_REQUIRED",
+        messageKey: "regulation.usPart107",
+        warnings: [warning("REGULATORY_THRESHOLD_CROSSED", "warnings.regulatoryThresholdCrossed")],
+      };
+    }
+
+    return {
+      region,
+      purpose,
+      estimatedTakeoffWeightG,
+      weightThresholdG,
+      status: estimatedTakeoffWeightG < 250 ? "NO_REGISTRATION_BY_WEIGHT" : "REGISTRATION_REQUIRED",
+      messageKey: estimatedTakeoffWeightG < 250 ? "regulation.usSub250" : "regulation.usRegistration",
+      warnings: [],
+    };
+  }
+
+  if (region === "EU_EASA") {
+    return {
+      region,
+      purpose,
+      estimatedTakeoffWeightG,
+      weightThresholdG,
+      status: estimatedTakeoffWeightG < 250 ? "LIGHTWEIGHT_BENEFIT" : "REGISTRATION_REQUIRED",
+      messageKey: estimatedTakeoffWeightG < 250 ? "regulation.euSub250" : "regulation.euRegistration",
+      warnings: [],
+    };
+  }
+
+  return {
+    region,
+    purpose,
+    estimatedTakeoffWeightG,
+    weightThresholdG,
+    status: "CHECK_LOCAL_RULES",
+    messageKey: "regulation.generalDisclaimer",
+    warnings: [],
+  };
 }
 
-export function regulatoryBadgeText(assessment: RegulatoryAssessment, t: (key: string, params?: Record<string, string | number>) => string): string {
+export function regulatoryBadgeText(
+  assessment: RegulatoryAssessment,
+  t: (key: string, params?: Record<string, string | number>) => string
+): string {
   if (assessment.estimatedTakeoffWeightG === null) {
     return t("regulation.unknownWeight");
   }
   const weight = Math.round(assessment.estimatedTakeoffWeightG);
-  return t(assessment.badgeKey, { weight });
+  return t(assessment.messageKey, { weight });
 }
