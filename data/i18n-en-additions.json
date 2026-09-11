@@ -1,0 +1,187 @@
+{
+  "fpvCatalogV2": {
+    "nav": {
+      "language": "Language",
+      "currency": "Currency",
+      "regulations": "Regulations"
+    },
+    "result": {
+      "title": "Your recommended kit",
+      "goggles": "Goggles",
+      "drone": "Drone",
+      "radio": "Radio",
+      "charger": "Charger",
+      "batteries": "Batteries",
+      "whyKit": "Why this kit?",
+      "compatibility": "Compatibility",
+      "idealFor": "Ideal for",
+      "limitations": "Limitations",
+      "details": "Details",
+      "buy": "Buy",
+      "bestPick": "Best pick",
+      "valueAlternative": "Value alternative",
+      "premiumUpgrade": "Premium upgrade",
+      "approxPrice": "Approx. price",
+      "verified": "Verified",
+      "available": "Available",
+      "limitedStock": "Limited stock",
+      "soldOut": "Sold out"
+    },
+    "cost": {
+      "coreKit": "Core kit",
+      "recommendedExtras": "Recommended extras",
+      "totalWithExtras": "Total with extras",
+      "requiredPsu": "Required power supply",
+      "radioBatteries": "Radio batteries",
+      "chargingAdapter": "Charging adapter",
+      "fxDisclaimer": "Reference conversion: US$1 = COP 3,200. This is not a live exchange rate."
+    },
+    "battery": {
+      "recommendedQuantity": "Recommended quantity",
+      "practicalMinimum": "Practical minimum",
+      "normalSession": "For a normal session",
+      "racing": "For racing",
+      "quantitySentence": "We recommend {{recommended}} batteries; {{minimum}} is the practical minimum for this kit."
+    },
+    "budget": {
+      "belowMinimumTitle": "Your budget is below the practical minimum",
+      "belowMinimumBody": "We couldn't build a complete compatible kit at this budget without removing required components. The minimum setup we recommend is approximately {{minimumPrice}}.",
+      "difference": "You are approximately {{difference}} short."
+    },
+    "compatibility": {
+      "valid": "Compatible",
+      "warning": "Compatible with a warning",
+      "invalid": "Incompatible",
+      "incomplete": "Missing a required component",
+      "verify": "Needs verification"
+    },
+    "regulation": {
+      "title": "Regulations",
+      "countryRegion": "Country / region",
+      "colombia": "Colombia",
+      "unitedStates": "United States",
+      "euEasa": "EU / EASA",
+      "other": "Other / not selected",
+      "operationType": "Operation type",
+      "recreational": "Recreational",
+      "commercial": "Commercial / professional",
+      "notSure": "Not sure",
+      "preferSimpleWeight": "Prefer a simpler regulatory weight class",
+      "readyToFlyWeight": "Ready-to-fly weight",
+      "dryWeight": "Dry weight",
+      "unknownWeight": "Ready-to-fly weight could not be confirmed.",
+      "generalDisclaimer": "Rules depend on location, operation type, and ready-to-fly weight. This is general guidance; check Aerocivil/FAA/EASA before flying.",
+      "coSub200": "{{weight}} g ready to fly · <200 g: no UAS registration by weight in open category*",
+      "coRegistration": "{{weight}} g ready to fly · UAS registration required by weight threshold*",
+      "coCommercial": "Commercial operation: specific-category rules apply; <200 g does not remove registration/authorization requirements.*",
+      "coFpvObserver": "FPV: under Colombia's open category, RAC 100 requires a visual observer.",
+      "usSub250": "{{weight}} g · <250 g: no FAA registration if flown exclusively recreationally*",
+      "usRegistration": "{{weight}} g · FAA registration required for recreational flight*",
+      "usPart107": "Part 107: registration required regardless of weight.*",
+      "usTrust": "In the U.S., <250 g can avoid registration for exclusively recreational flying, but TRUST is still required.",
+      "euSub250": "<250 g · A1 category advantage; with an FPV camera you generally still need operator registration.*",
+      "euRegistration": "{{weight}} g · UAS operator registration required in most EASA member states*",
+      "thresholdCrossedBattery": "This battery raises ready-to-fly weight to {{weight}} g and crosses the {{threshold}} g regulatory threshold.",
+      "infoStale": "Regulatory information should be rechecked with the official authority.",
+      "noStrongSubThreshold": "We couldn't find a strong recommendation for this flight style that stays below the selected weight threshold."
+    },
+    "warnings": {
+      "videoTradeoff": "This video system works, but it has an important tradeoff for this use.",
+      "racingO4Compromise": "DJI O4 is compatible, but it remains a compromise versus dedicated low-latency racing systems.",
+      "batteryHeavy": "This battery is at the heavy end of the recommended range and will reduce agility.",
+      "batteryOutsideRecommendedRange": "This battery is outside the recommended range for this drone.",
+      "lihvVoltage": "A fully charged 6S LiHV pack can reach 26.1 V; electronics must be verified before recommending 4.35 V per cell.",
+      "requiresPsu": "This charger needs a compatible external power supply to be a complete setup.",
+      "requiresReceiverModule": "These goggles need an additional receiver module for this video system.",
+      "physicalFit": "Electrical compatibility is correct, but physical fit still needs verification.",
+      "stockLimited": "Current availability is limited.",
+      "legacyProduct": "This is a previous generation kept for compatibility or specific value.",
+      "aspectRatio": "The camera and goggle aspect ratios are not an ideal match.",
+      "regulatoryThresholdCrossed": "This configuration crosses an important regulatory weight threshold.",
+      "regulatoryInfoStale": "The regulatory information needs to be reverified.",
+      "noExactTakeoffWeight": "There is not enough data to calculate ready-to-fly weight precisely."
+    },
+    "reasons": {
+      "batteryExactRange": "We chose {{selected}}mAh because {{brand}} recommends {{min}}–{{max}}mAh for the {{drone}}.",
+      "videoCompatible": "{{video}} is compatible with {{goggles}}.",
+      "radioCompatible": "{{radio}} matches this drone's {{protocol}} receiver.",
+      "chargerCompatible": "The selected charger supports {{cells}}S {{chemistry}} and the required power.",
+      "budgetFit": "The kit is approximately {{price}} and stays within your budget.",
+      "availability": "We prioritized this option because current availability is verified."
+    },
+    "flightStyles": {
+      "tinywhoopIndoor": "Tinywhoop / indoor",
+      "microFreestyle": "Micro freestyle 2–3.5\"",
+      "freestyle5": "5\" freestyle",
+      "cinematic": "Cinematic",
+      "longRange": "Long range",
+      "racing": "Racing"
+    },
+    "experience": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced"
+    },
+    "video": {
+      "analog": "Analog",
+      "djiO4": "DJI O4",
+      "any": "Any"
+    },
+    "productState": {
+      "core": "Recommended",
+      "value": "Great value",
+      "premium": "Premium",
+      "specialist": "Specialist",
+      "conditional": "Conditional",
+      "watchlist": "Availability to verify",
+      "doNotDefault": "Not our default pick",
+      "legacy": "Previous generation"
+    },
+    "scope": {
+      "question": "What do you want us to recommend?",
+      "fullKit": "Complete kit",
+      "droneOnly": "Drone only",
+      "completeExisting": "Complete / upgrade my current setup",
+      "ownedQuestion": "What gear do you already own?",
+      "nothing": "Nothing / start fresh",
+      "alreadyOwned": "Already owned",
+      "toBuy": "To buy",
+      "goggles": "Goggles",
+      "radio": "Radio",
+      "charger": "Charger",
+      "batteries": "Batteries"
+    },
+    "advancedPriority": {
+      "title": "Advanced priority",
+      "balanced": "Balanced",
+      "lowLatency": "Lowest latency",
+      "imageQuality": "Best image quality",
+      "value": "Best value",
+      "portability": "Portability",
+      "flightTime": "Flight time",
+      "repairability": "Repairability"
+    },
+    "environment": {
+      "question": "Where will you fly it most?",
+      "indoor": "Indoor / tight spaces",
+      "mixed": "Mixed",
+      "outdoor": "Outdoor"
+    },
+    "ownedGear": {
+      "compatibleReuse": "You already own compatible {{product}}, so we did not spend part of your budget replacing it.",
+      "incompatible": "Your current {{product}} is not compatible with this configuration.",
+      "needsVerification": "We could not automatically verify this gear; check compatibility before buying."
+    },
+    "communityValue": {
+      "practicalOwnership": "Practical ownership",
+      "repairDifficulty": "Repair difficulty",
+      "partsAvailability": "Parts availability",
+      "commonConsumables": "Common consumables",
+      "purchaseOptions": "Purchase options",
+      "referenceFlightTime": "Reference flight time"
+    },
+    "learning": {
+      "simulatorBeginner": "Before your first Acro flight, simulator practice can save props, frames, and money."
+    }
+  }
+}
