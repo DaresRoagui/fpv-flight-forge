@@ -289,6 +289,7 @@ export type BundleItem = {
   owned: boolean;
   includedInPrice: boolean;
   referenceOnly?: boolean;
+  quantity?: number;
 };
 
 export type RegulatoryAssessment = {
@@ -324,6 +325,7 @@ export type KitBundle = {
   reasons: Reason[];
   warnings: Warning[];
   regulatory?: RegulatoryAssessment;
+  score?: number;
 };
 
 export type RecommendationResult =
