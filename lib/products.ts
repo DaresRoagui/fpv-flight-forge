@@ -1,6 +1,7 @@
 import { productSchema, Product, ProductCategory } from "@/lib/schema";
 import { PRODUCTS } from "@/data/products";
 import { PRODUCT_OVERRIDES } from "@/lib/catalog-profiles";
+import { CURATED_DRONE_PRODUCTS } from "@/lib/curated-drone-products";
 
 function mergeProductOverrides(products: Product[]): Product[] {
   return products.map((product) => {
@@ -10,7 +11,17 @@ function mergeProductOverrides(products: Product[]): Product[] {
   });
 }
 
-const MERGED_PRODUCTS: Product[] = mergeProductOverrides(PRODUCTS);
+function mergeCuratedProducts(base: Product[], curated: Product[]): Product[] {
+  const byId = new Map<string, Product>();
+  base.forEach((product) => byId.set(product.id, product));
+  curated.forEach((product) => byId.set(product.id, product));
+  return [...byId.values()];
+}
+
+const MERGED_PRODUCTS: Product[] = mergeCuratedProducts(
+  mergeProductOverrides(PRODUCTS),
+  CURATED_DRONE_PRODUCTS
+);
 
 export function validateProducts(products: unknown[]): Product[] {
   return products.map((p, i) => {
