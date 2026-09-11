@@ -33,6 +33,13 @@ function score(record: CuratedDroneRecord, key: string): number | undefined {
   return found?.[1];
 }
 
+function connectorFamily(connector: string): string {
+  const upper = connector.toUpperCase();
+  if (upper.startsWith("XT60")) return "XT60";
+  if (upper.startsWith("XT30")) return "XT30";
+  return connector;
+}
+
 function toProduct(record: CuratedDroneRecord): Product {
   if (record.priceUsd === null || record.priceUsd === undefined || !record.aircraftProfile) {
     throw new Error(`Curated winner ${record.id} is missing price/profile and cannot enter runtime catalog`);
@@ -45,6 +52,8 @@ function toProduct(record: CuratedDroneRecord): Product {
     ? Math.round((ratingCandidates.reduce((sum, value) => sum + value, 0) / ratingCandidates.length) * 10) / 10
     : 8.5;
   const primaryRoles = record.primaryRoles ?? [];
+  const installedConnector = record.aircraftProfile.battery.connector;
+  const compatibilityConnector = connectorFamily(installedConnector);
 
   return {
     id: record.id,
@@ -65,6 +74,10 @@ function toProduct(record: CuratedDroneRecord): Product {
     weightG,
     aircraftProfile: {
       ...record.aircraftProfile,
+      battery: {
+        ...record.aircraftProfile.battery,
+        connector: compatibilityConnector,
+      },
       dryWeightG: record.aircraftProfile.dryWeightG ?? weightG,
     },
     compat: [],
@@ -75,7 +88,8 @@ function toProduct(record: CuratedDroneRecord): Product {
       videoUnit: record.videoUnit ?? record.aircraftProfile.video.unit ?? record.aircraftProfile.video.system,
       cells: record.aircraftProfile.battery.cellsAllowed.map((cells) => `${cells}S`).join(","),
       chemistry: record.aircraftProfile.battery.chemistriesAllowed.join(","),
-      connector: record.aircraftProfile.battery.connector,
+      connector: installedConnector,
+      connectorCompatibility: compatibilityConnector,
       batteryMah: `${record.aircraftProfile.battery.capacityMah.min}-${record.aircraftProfile.battery.capacityMah.max}mAh`,
       ...(weightG !== undefined ? { weight: `${weightG}g` } : {}),
     },
