@@ -10,6 +10,17 @@ Last updated: 2026-09-11
 - Pull request: #1
 - Development rule: continue all iterative work on the working branch. Do not merge to `main` until the current iteration has been reviewed in Vercel Preview.
 
+## Current deployment status
+
+- Working-branch preview automation: CONFIGURED.
+- Latest preview workflow run: completed successfully as a GitHub Actions job, but deployment was intentionally skipped because the required Vercel GitHub secrets are currently empty.
+- Missing GitHub Actions secrets:
+  - `VERCEL_TOKEN`
+  - `VERCEL_ORG_ID`
+  - `VERCEL_PROJECT_ID`
+- ChatGPT Vercel connector is connected, but at the time of this handoff it does not expose the existing `fpv-flight-forge` project/team to the connector, so it cannot automatically copy project credentials into GitHub.
+- Do not merge to `main` merely to obtain a visible deployment. Resolve Preview access first.
+
 ## Vercel deployment flow
 
 The GitHub workflow `.github/workflows/vercel-deploy.yml` is intentionally split by branch:
@@ -148,12 +159,14 @@ Do not perform the major `recommendation.ts` combination/scoring refactor until 
 - `data/curated-drone-helpers.ts`
 - `tests/catalog-sanity.test.ts`
 - `.github/workflows/vercel-deploy.yml`
+- `HANDOFF.md`
 
 ## Continuation checklist for the next agent/session
 
 1. Read this file first.
 2. Confirm current branch and head before changing files.
 3. Inspect the latest Vercel Preview deployment for this branch.
-4. Treat curated research as source of truth.
-5. Continue with Iteration 2 only after resolving any build/type errors exposed by Preview.
-6. Update this `HANDOFF.md` after every completed iteration with head SHA, Preview status and remaining work.
+4. If no Preview exists, verify the three GitHub Vercel secrets before changing deployment logic.
+5. Treat curated research as source of truth.
+6. Continue with Iteration 2 only after resolving any build/type errors exposed by Preview.
+7. Update this `HANDOFF.md` after every completed iteration with head SHA, Preview status and remaining work.
