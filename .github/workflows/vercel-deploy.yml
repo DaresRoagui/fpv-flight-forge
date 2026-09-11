@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
+      - name: Build app
+        run: npm run build
       - run: npm install -g vercel@latest
       - name: Deploy to Vercel
         shell: bash
