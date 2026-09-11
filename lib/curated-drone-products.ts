@@ -26,14 +26,15 @@ function recommendedStyles(record: CuratedDroneRecord): FlightStyle[] {
 }
 
 function score(record: CuratedDroneRecord, key: string): number | undefined {
-  const direct = record.fitScores[key];
+  const scores = record.fitScores ?? {};
+  const direct = scores[key];
   if (direct !== undefined) return direct;
-  const found = Object.entries(record.fitScores).find(([name]) => name.toLowerCase().includes(key.toLowerCase()));
+  const found = Object.entries(scores).find(([name]) => name.toLowerCase().includes(key.toLowerCase()));
   return found?.[1];
 }
 
 function toProduct(record: CuratedDroneRecord): Product {
-  if (record.priceUsd === null || !record.aircraftProfile) {
+  if (record.priceUsd === null || record.priceUsd === undefined || !record.aircraftProfile) {
     throw new Error(`Curated winner ${record.id} is missing price/profile and cannot enter runtime catalog`);
   }
 
@@ -43,6 +44,7 @@ function toProduct(record: CuratedDroneRecord): Product {
   const rating = ratingCandidates.length
     ? Math.round((ratingCandidates.reduce((sum, value) => sum + value, 0) / ratingCandidates.length) * 10) / 10
     : 8.5;
+  const primaryRoles = record.primaryRoles ?? [];
 
   return {
     id: record.id,
@@ -78,7 +80,7 @@ function toProduct(record: CuratedDroneRecord): Product {
       ...(weightG !== undefined ? { weight: `${weightG}g` } : {}),
     },
     description: `Curated 2026 FPV catalog product from research segment ${String(record.sourceSegment).padStart(2, "0")}.`,
-    idealFor: record.primaryRoles.length ? record.primaryRoles : recommendedStyles(record),
+    idealFor: primaryRoles.length ? primaryRoles : recommendedStyles(record),
     limitations: [],
     images: ["/images/drone.svg"],
     productUrl: record.sourceUrl,
