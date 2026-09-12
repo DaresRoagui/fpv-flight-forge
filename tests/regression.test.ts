@@ -33,7 +33,7 @@ function buildPrefs(overrides: Partial<UserPreferences>): UserPreferences {
 describe("drone-centric battery compatibility", () => {
   it("CineLog35 V3 O4 accepts 1300mAh and rejects 3300mAh", () => {
     const drone = find("geprc-cinelog35-v3-o4-pro-elrs");
-    const ok = find("battery-ovonic-6s-1300");
+    const ok = find("ovonic-6s-1300-100c");
     const tooBig = find("battery-iflight-fullsend-6s-3300");
     expect(batteryMatchesDrone(ok, drone).state).not.toBe("HARD_INVALID");
     expect(batteryMatchesDrone(tooBig, drone).state).toBe("HARD_INVALID");
@@ -51,8 +51,8 @@ describe("drone-centric battery compatibility", () => {
     expect(batteryMatchesDrone(battery, drone).state).not.toBe("HARD_INVALID");
   });
 
-  it("CineLog35 charger combination is valid", () => {
-    expect(chargerMatchesBattery(find("charger-hota-t6"), find("battery-ovonic-6s-1300")).state).not.toBe("HARD_INVALID");
+  it("CineLog35 charger combination is electrically supported", () => {
+    expect(chargerMatchesBattery(find("hota-t6"), find("ovonic-6s-1300-100c")).state).not.toBe("HARD_INVALID");
   });
 });
 
@@ -80,7 +80,7 @@ describe("recommendation scope and owned gear", () => {
         videoSystem: "dji_o4",
         experience: "intermediate",
         scope: "COMPLETE_EXISTING_SETUP",
-        ownedGear: { gogglesProductId: "goggles-dji-goggles-3" },
+        ownedGear: { gogglesProductId: "dji-goggles-3" },
       }),
       allProducts
     );
@@ -130,14 +130,14 @@ describe("flight environment and image path", () => {
 });
 
 describe("regulatory weight assessment", () => {
-  it("historical Cetus Pro + 1S remains directly assessable below Colombia 200g", () => {
-    const assessment = assessRegulation(find("drone-betafpv-cetus-pro"), find("battery-gnb-1s-530"), "CO", "RECREATIONAL");
+  it("historical Cetus Pro + current 1S remains directly assessable below Colombia 200g", () => {
+    const assessment = assessRegulation(find("drone-betafpv-cetus-pro"), find("betafpv-lava-ii-1s-320"), "CO", "RECREATIONAL");
     expect(assessment.estimatedTakeoffWeightG).toBeLessThan(200);
     expect(assessment.status).toBe("NO_REGISTRATION_BY_WEIGHT");
   });
 
   it("curated CineLog35 V3 + 6S 1300 is over US 250g", () => {
-    const assessment = assessRegulation(find("geprc-cinelog35-v3-o4-pro-elrs"), find("battery-ovonic-6s-1300"), "US", "RECREATIONAL");
+    const assessment = assessRegulation(find("geprc-cinelog35-v3-o4-pro-elrs"), find("ovonic-6s-1300-100c"), "US", "RECREATIONAL");
     expect(assessment.estimatedTakeoffWeightG).toBeGreaterThan(250);
     expect(assessment.status).toBe("REGISTRATION_REQUIRED");
   });
