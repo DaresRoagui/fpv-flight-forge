@@ -73,7 +73,7 @@ describe("compatibility rules", () => {
   });
 });
 
-describe("recommendation coverage after Iteration 2 component ingestion", () => {
+describe("recommendation coverage after Iteration 3 racing promotion", () => {
   it("Racing Analog has purpose-built curated aircraft instead of freestyle stand-ins", () => {
     const racers = CURATED_DRONE_CATALOG.filter(
       (record) => record.sourceSegment === 7 && record.videoSystems.includes("analog") && record.flightStyles.includes("racing")
@@ -82,11 +82,12 @@ describe("recommendation coverage after Iteration 2 component ingestion", () => 
     expect(racers.some((record) => record.id.includes("mark5"))).toBe(false);
   });
 
-  it("Racing O4 keeps the researched Manta compromise without pretending it is competitive", () => {
+  it("Racing O4 enables the researched Manta compromise without pretending it is competitive", () => {
     const manta = getCuratedDroneRecord("axisflying-manta5-se-v2-squashed-x-o4-wide-elrs");
     expect(manta?.sourceStatus).toBe("CORE_RECREATIONAL_O4");
     expect(manta?.flightStyles).toContain("racing");
-    expect(manta?.recommendationStatus).toBe("CATALOG_ONLY");
+    expect(manta?.recommendationStatus).toBe("ENABLED");
+    expect(manta?.fitScores.competitiveRacing).toBe(3.5);
   });
 
   it("Tinywhoop + Analog builds a modern non-Cetus kit", () => {
@@ -118,7 +119,7 @@ describe("recommendation coverage after Iteration 2 component ingestion", () => 
       allProducts
     );
     expect(analog.kind).toBe("kit");
-    if (analog.kind === "kit") expect(analog.kit.drone.recommendedStyles).toContain("freestyle");
+    if (analog.kind === "kit") expect(analog.kit.drone.flightStyles).toContain("freestyle");
 
     const o4 = recommendKit(
       buildPrefs({ budget: 1200, experience: "intermediate", style: "freestyle", videoSystem: "dji_o4" }),
