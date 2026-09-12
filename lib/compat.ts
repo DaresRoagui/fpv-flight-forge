@@ -215,8 +215,6 @@ function batteryConnectorSupportedByDrone(battery: Product, drone: Product): boo
 
   if (allowedConnector) {
     if (normalizeConnector(connector) === normalizeConnector(allowedConnector)) return true;
-    // Directional rule from Segment 15: A30 battery -> BT2.0 aircraft is generally compatible.
-    // The reverse is not assumed unless the battery record explicitly says so.
     return (profile?.connectorCompatibility ?? []).some(
       (candidate) => normalizeConnector(candidate) === normalizeConnector(allowedConnector)
     );
@@ -254,15 +252,9 @@ type BatteryMatchResult = {
 export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMatchResult {
   const warnings: Warning[] = [];
 
-  if (!batteryCellsSupportedByDrone(battery, drone)) {
-    return { state: "HARD_INVALID", warnings };
-  }
-  if (!batteryChemistrySupportedByDrone(battery, drone)) {
-    return { state: "HARD_INVALID", warnings };
-  }
-  if (!batteryConnectorSupportedByDrone(battery, drone)) {
-    return { state: "HARD_INVALID", warnings };
-  }
+  if (!batteryCellsSupportedByDrone(battery, drone)) return { state: "HARD_INVALID", warnings };
+  if (!batteryChemistrySupportedByDrone(battery, drone)) return { state: "HARD_INVALID", warnings };
+  if (!batteryConnectorSupportedByDrone(battery, drone)) return { state: "HARD_INVALID", warnings };
 
   const capacity = getBatteryCapacityMah(battery);
   const range = getDroneCapacityRange(drone);
@@ -271,52 +263,25 @@ export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMa
     if (capacity < range.min || capacity > range.max) {
       return {
         state: "HARD_INVALID",
-        warnings: [
-          {
-            type: "BATTERY_OUTSIDE_RECOMMENDED_RANGE",
-            messageKey: "warnings.batteryOutsideRecommendedRange",
-          },
-        ],
+        warnings: [{ type: "BATTERY_OUTSIDE_RECOMMENDED_RANGE", messageKey: "warnings.batteryOutsideRecommendedRange" }],
       };
     }
     if (capacity < range.idealMin || capacity > range.idealMax) {
-      warnings.push({
-        type: "BATTERY_OUTSIDE_RECOMMENDED_RANGE",
-        messageKey: "warnings.batteryOutsideRecommendedRange",
-      });
+      warnings.push({ type: "BATTERY_OUTSIDE_RECOMMENDED_RANGE", messageKey: "warnings.batteryOutsideRecommendedRange" });
     } else if (capacity > range.idealMax * 0.9) {
-      warnings.push({
-        type: "BATTERY_HEAVY",
-        messageKey: "warnings.batteryHeavy",
-      });
+      warnings.push({ type: "BATTERY_HEAVY", messageKey: "warnings.batteryHeavy" });
     }
   } else if (capacity === null) {
-    warnings.push({
-      type: "PHYSICAL_FIT",
-      messageKey: "warnings.physicalFit",
-    });
+    warnings.push({ type: "PHYSICAL_FIT", messageKey: "warnings.physicalFit" });
   }
 
   const batteryWeight = getBatteryWeightG(battery);
   const maxBatteryWeight = drone.aircraftProfile?.battery.maxBatteryWeightG;
   if (batteryWeight !== null && maxBatteryWeight !== undefined && maxBatteryWeight > 0) {
     if (batteryWeight > maxBatteryWeight) {
-      return {
-        state: "HARD_INVALID",
-        warnings: [
-          {
-            type: "BATTERY_HEAVY",
-            messageKey: "warnings.batteryHeavy",
-          },
-        ],
-      };
+      return { state: "HARD_INVALID", warnings: [{ type: "BATTERY_HEAVY", messageKey: "warnings.batteryHeavy" }] };
     }
-    if (batteryWeight > maxBatteryWeight * 0.9) {
-      warnings.push({
-        type: "BATTERY_HEAVY",
-        messageKey: "warnings.batteryHeavy",
-      });
-    }
+    if (batteryWeight > maxBatteryWeight * 0.9) warnings.push({ type: "BATTERY_HEAVY", messageKey: "warnings.batteryHeavy" });
   }
 
   const maxVoltage = drone.aircraftProfile?.battery.maxFullVoltageV;
@@ -328,13 +293,7 @@ export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMa
     if (fullVoltage !== undefined && fullVoltage > maxVoltage + 0.1) {
       return {
         state: "HARD_INVALID",
-        warnings: [
-          {
-            type: "LIHV_VOLTAGE",
-            messageKey: "warnings.lihvVoltage",
-            params: { voltage: fullVoltage.toFixed(1) },
-          },
-        ],
+        warnings: [{ type: "LIHV_VOLTAGE", messageKey: "warnings.lihvVoltage", params: { voltage: fullVoltage.toFixed(1) } }],
       };
     }
   }
@@ -342,7 +301,6 @@ export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMa
   if (warnings.length > 0) {
     return { state: warnings.some((w) => w.type === "BATTERY_OUTSIDE_RECOMMENDED_RANGE") ? "SOFT_PENALTY" : "VALID_WITH_WARNING", warnings };
   }
-
   return { state: "VALID", warnings };
 }
 
@@ -372,9 +330,7 @@ function chargerCellsSupported(charger: Product, battery: Product): boolean {
 function connectorSupported(charger: Product, battery: Product): boolean {
   const profile = curatedChargerProfile(charger);
   const connector = normalizeConnector(batteryConnector(battery));
-  if (profile) {
-    return profile.acceptedBatteryConnectors.some((accepted) => normalizeConnector(accepted) === connector);
-  }
+  if (profile) return profile.acceptedBatteryConnectors.some((accepted) => normalizeConnector(accepted) === connector);
   const chargerConnectors = parseList(charger.keySpecs?.connector).map(normalizeConnector);
   if (chargerConnectors.length === 0 || !connector) return true;
   return chargerConnectors.includes(connector);
@@ -389,26 +345,16 @@ function chargerNeedsAdapter(charger: Product, battery: Product): boolean {
 
 export function chargerMatchesBattery(charger: Product, battery: Product): BatteryMatchResult {
   const warnings: Warning[] = [];
-  const cellsOk = chargerCellsSupported(charger, battery);
-  const chemistryOk = chemistrySupported(charger, battery);
-  const connectorOk = connectorSupported(charger, battery);
-
-  if (!cellsOk || !chemistryOk || !connectorOk) {
+  if (!chargerCellsSupported(charger, battery) || !chemistrySupported(charger, battery) || !connectorSupported(charger, battery)) {
     return { state: "HARD_INVALID", warnings };
   }
 
   if (charger.requiresPsu || curatedChargerProfile(charger)?.requiresExternalPsu) {
-    warnings.push({
-      type: "REQUIRES_PSU",
-      messageKey: "warnings.requiresPsu",
-    });
+    warnings.push({ type: "REQUIRES_PSU", messageKey: "warnings.requiresPsu" });
     return { state: "INCOMPLETE_KIT", warnings };
   }
 
-  if (chargerNeedsAdapter(charger, battery)) {
-    return { state: "INCOMPLETE_KIT", warnings };
-  }
-
+  if (chargerNeedsAdapter(charger, battery)) return { state: "INCOMPLETE_KIT", warnings };
   return { state: "VALID", warnings };
 }
 
@@ -421,17 +367,15 @@ export function flightStyleMatches(drone: Product, style: FlightStyle): boolean 
 }
 
 export function styleIsRecommended(drone: Product, style: FlightStyle): boolean {
-  if (drone.recommendedStyles && drone.recommendedStyles.length > 0) {
-    return drone.recommendedStyles.includes(style);
-  }
+  if (drone.recommendedStyles && drone.recommendedStyles.length > 0) return drone.recommendedStyles.includes(style);
   return drone.flightStyles.includes(style);
 }
 
 // ---------- Video recommendation ----------
 
-export function videoSystemIsRecommended(preferences: UserPreferences): Exclude<VideoSystem, "dji_o3" | "hdzero" | "walksnail"> | "dji_o4" | "analog" {
+export function videoSystemIsRecommended(preferences: UserPreferences): VideoSystem {
   if (preferences.videoSystem !== "recommend") return preferences.videoSystem;
-  // DJI O4 is a nicer experience for beginners when budget allows.
+  if (preferences.style === "racing" && preferences.experience !== "beginner") return "hdzero";
   if (preferences.budget >= 550 && preferences.experience !== "advanced") return "dji_o4";
   return "analog";
 }
@@ -451,19 +395,9 @@ export function validateBundle(
   charger: Product,
   battery: Product
 ): ValidationError | null {
-  if (!videoSystemMatches(goggles, drone)) {
-    return { kind: "video", goggles, drone };
-  }
-  if (!protocolMatches(radio, drone)) {
-    return { kind: "protocol", radio, drone };
-  }
-  const batteryMatch = batteryMatchesDrone(battery, drone);
-  if (batteryMatch.state === "HARD_INVALID") {
-    return { kind: "battery", battery, drone };
-  }
-  const chargerMatch = chargerMatchesBattery(charger, battery);
-  if (chargerMatch.state === "HARD_INVALID") {
-    return { kind: "charger", charger, battery };
-  }
+  if (!videoSystemMatches(goggles, drone)) return { kind: "video", goggles, drone };
+  if (!protocolMatches(radio, drone)) return { kind: "protocol", radio, drone };
+  if (batteryMatchesDrone(battery, drone).state === "HARD_INVALID") return { kind: "battery", battery, drone };
+  if (chargerMatchesBattery(charger, battery).state === "HARD_INVALID") return { kind: "charger", charger, battery };
   return null;
 }
