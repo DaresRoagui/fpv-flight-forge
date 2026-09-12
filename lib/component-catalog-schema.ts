@@ -64,6 +64,7 @@ export type ChargerProfile = {
   independentPerChannelSettings?: boolean;
   nativeConnectors: string[];
   acceptedBatteryConnectors: string[];
+  adapterRequiredFor?: string[];
   connectorRules?: string[];
   balanceConnector?: string;
   storageSupport: boolean;
