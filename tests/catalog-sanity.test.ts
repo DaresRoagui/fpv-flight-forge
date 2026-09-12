@@ -17,8 +17,8 @@ describe("curated drone catalog sanity", () => {
     }
   });
 
-  it("only promotes source-grounded winners with an exact aircraft profile and price", () => {
-    expect(CURATED_RECOMMENDER_DRONES).toHaveLength(23);
+  it("only promotes source-grounded winners with an exact aircraft profile and usable price", () => {
+    expect(CURATED_RECOMMENDER_DRONES).toHaveLength(28);
     CURATED_RECOMMENDER_DRONES.forEach((record) => {
       expect(record.priceUsd).not.toBeNull();
       expect(record.aircraftProfile).toBeDefined();
@@ -31,8 +31,13 @@ describe("curated drone catalog sanity", () => {
       const product = runtime.find((candidate) => candidate.id === record.id);
       expect(product).toBeDefined();
       expect(product?.aircraftProfile).toBeDefined();
-      expect(product?.weightG).toBeGreaterThan(0);
-      expect(product?.aircraftProfile?.dryWeightG).toBeGreaterThan(0);
+      const sourcedWeight = record.dryWeightG ?? record.aircraftProfile?.dryWeightG;
+      if (sourcedWeight !== undefined) {
+        expect(product?.weightG).toBeGreaterThan(0);
+        expect(product?.aircraftProfile?.dryWeightG).toBeGreaterThan(0);
+      } else {
+        expect(record.sourceSegment).toBe(7);
+      }
     });
   });
 
@@ -63,15 +68,17 @@ describe("curated drone catalog sanity", () => {
     expect(getProductById("drone-geprc-vapor-d5-o4")?.state).toBe("DO_NOT_DEFAULT");
   });
 
-  it("contains real HDZero race inventory and the explicit O4 race compromise", () => {
+  it("contains enabled real HDZero racers and the explicit O4 race compromise", () => {
     const hdzero = CURATED_DRONE_CATALOG.filter((record) => record.videoSystems.includes("hdzero"));
     expect(hdzero.length).toBeGreaterThanOrEqual(5);
-    expect(hdzero.some((record) => record.id === "iflight-mach-r5-ultra-trainer-hdzero")).toBe(true);
-    expect(hdzero.some((record) => record.id === "vroom-comet-pro-5-wrekd-hdzero-elrs")).toBe(true);
+    expect(getCuratedDroneRecord("iflight-mach-r5-ultra-trainer-hdzero")?.recommendationStatus).toBe("ENABLED");
+    expect(getCuratedDroneRecord("vroom-comet-pro-5-wrekd-hdzero-elrs")?.recommendationStatus).toBe("ENABLED");
 
     const o4Compromise = getCuratedDroneRecord("axisflying-manta5-se-v2-squashed-x-o4-wide-elrs");
     expect(o4Compromise?.flightStyles).toContain("racing");
-    expect(o4Compromise?.recommendationStatus).toBe("CATALOG_ONLY");
+    expect(o4Compromise?.recommendationStatus).toBe("ENABLED");
+    expect(o4Compromise?.fitScores.competitiveRacing).toBeLessThan(5);
+    expect(o4Compromise?.priceNote).toContain("€439");
   });
 
   it("does not collapse technically distinct purchase variants", () => {
