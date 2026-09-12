@@ -36,44 +36,44 @@ function buildPrefs(overrides: Partial<UserPreferences>): UserPreferences {
 }
 
 describe("compatibility rules", () => {
-  it("keeps direct compatibility checks available for gated historical gear", () => {
-    const n3 = find("goggles-dji-n3");
-    const ev800d = find("goggles-eachine-ev800d");
+  it("keeps direct compatibility checks available for current and historical gear", () => {
+    const n3 = find("dji-goggles-n3");
+    const echo = find("fatshark-echo-analog");
     const cetus = find("drone-betafpv-cetus-pro");
     expect(videoSystemMatches(n3, cetus)).toBe(false);
-    expect(videoSystemMatches(ev800d, cetus)).toBe(true);
+    expect(videoSystemMatches(echo, cetus)).toBe(true);
   });
 
   it("matches control protocol and battery electrical constraints", () => {
-    const zorro = find("radio-radiomaster-zorro");
+    const pocket = find("radiomaster-pocket-elrs");
     const meteor = find("betafpv-meteor75-pro-ii-o4-wide");
-    expect(protocolMatches(zorro, meteor)).toBe(true);
+    expect(protocolMatches(pocket, meteor)).toBe(true);
 
-    const sixS = find("battery-ovonic-6s-1300");
+    const sixS = find("ovonic-6s-1300-100c");
     expect(batteryMatchesDrone(sixS, meteor).state).toBe("HARD_INVALID");
   });
 
   it("matches charger cells and rejects an impossible battery", () => {
-    const charger = find("charger-vifly-whoopstor-v3");
-    const oneS = find("battery-gnb-1s-530");
-    const sixS = find("battery-ovonic-6s-1300");
-    expect(chargerMatchesBattery(charger, oneS).state).not.toBe("HARD_INVALID");
+    const charger = find("geprc-woopower-w63");
+    const oneS = find("betafpv-lava-ii-1s-580");
+    const sixS = find("ovonic-6s-1300-100c");
+    expect(chargerMatchesBattery(charger, oneS).state).toBe("VALID");
     expect(chargerMatchesBattery(charger, sixS).state).toBe("HARD_INVALID");
   });
 
   it("rejects a full bundle with a video mismatch", () => {
     const error = validateBundle(
-      find("goggles-dji-n3"),
+      find("dji-goggles-n3"),
       find("drone-betafpv-cetus-pro"),
-      find("radio-radiomaster-pocket"),
-      find("charger-vifly-whoopstor-v3"),
-      find("battery-gnb-1s-530")
+      find("radiomaster-pocket-elrs"),
+      find("geprc-woopower-w63"),
+      find("betafpv-lava-ii-1s-320")
     );
     expect(error?.kind).toBe("video");
   });
 });
 
-describe("recommendation coverage after Iteration 1 catalog ingestion", () => {
+describe("recommendation coverage after Iteration 2 component ingestion", () => {
   it("Racing Analog has purpose-built curated aircraft instead of freestyle stand-ins", () => {
     const racers = CURATED_DRONE_CATALOG.filter(
       (record) => record.sourceSegment === 7 && record.videoSystems.includes("analog") && record.flightStyles.includes("racing")
@@ -154,9 +154,8 @@ describe("kit validation", () => {
     );
     expect(result.kind).toBe("kit");
     if (result.kind !== "kit") return;
-    const droneSystem = result.kit.drone.aircraftProfile?.video.system ?? result.kit.drone.videoSystems[0];
     const droneProtocol = result.kit.drone.aircraftProfile?.control.protocol ?? result.kit.drone.protocols[0];
-    expect(result.kit.goggles?.videoSystems).toContain(droneSystem);
+    expect(videoSystemMatches(result.kit.goggles!, result.kit.drone)).toBe(true);
     expect(result.kit.radio?.protocols).toContain(droneProtocol);
     expect(batteryMatchesDrone(result.kit.battery, result.kit.drone).state).not.toBe("HARD_INVALID");
     expect(chargerMatchesBattery(result.kit.charger!, result.kit.battery).state).not.toBe("HARD_INVALID");
