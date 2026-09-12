@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - devin/1788666549-fpv-mvp
   workflow_dispatch:
 
 jobs:
@@ -31,10 +30,5 @@ jobs:
             exit 0
           fi
 
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            echo "Deploying main to Vercel production..."
-            vercel --yes --prod --token "$VERCEL_TOKEN"
-          else
-            echo "Deploying $GITHUB_REF_NAME to Vercel preview..."
-            vercel --yes --token "$VERCEL_TOKEN"
-          fi
+          echo "Deploying main to Vercel production..."
+          vercel --yes --prod --token "$VERCEL_TOKEN"
