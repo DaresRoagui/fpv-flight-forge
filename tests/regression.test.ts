@@ -57,19 +57,17 @@ describe("drone-centric battery compatibility", () => {
 });
 
 describe("recommendation scope and owned gear", () => {
-  it("DRONE_ONLY keeps total price at drone + batteries only", () => {
+  it("DRONE_ONLY charges only the drone and keeps battery/system as references", () => {
     const result = recommendKit(
       buildPrefs({ budget: 600, style: "freestyle", videoSystem: "analog", scope: "DRONE_ONLY", experience: "intermediate" }),
       allProducts
     );
     expect(result.kind).toBe("kit");
     if (result.kind !== "kit") return;
-    const pricedIds = result.kit.items.filter((item) => item.includedInPrice).map((item) => item.category);
-    expect(pricedIds).toContain("drone");
-    expect(pricedIds).toContain("battery");
-    expect(pricedIds).not.toContain("goggles");
-    expect(pricedIds).not.toContain("radio");
-    expect(pricedIds).not.toContain("charger");
+    const priced = result.kit.items.filter((item) => item.includedInPrice);
+    expect(priced.map((item) => item.category)).toEqual(["drone"]);
+    expect(result.kit.totalPrice).toBe(result.kit.drone.priceUsd);
+    expect(result.kit.items.find((item) => item.category === "battery")?.referenceOnly).toBe(true);
   });
 
   it("COMPLETE_EXISTING_SETUP reuses owned goggles and excludes them from price", () => {
@@ -90,18 +88,36 @@ describe("recommendation scope and owned gear", () => {
     expect(goggleItem?.owned).toBe(true);
     expect(goggleItem?.includedInPrice).toBe(false);
   });
+
+  it("surfaces an incompatible owned goggle instead of silently ignoring it", () => {
+    const result = recommendKit(
+      buildPrefs({
+        budget: 1200,
+        style: "cinematic",
+        videoSystem: "dji_o4",
+        experience: "intermediate",
+        scope: "COMPLETE_EXISTING_SETUP",
+        ownedGear: { gogglesProductId: "fatshark-echo-analog" },
+      }),
+      allProducts
+    );
+    expect(result.kind).toBe("kit");
+    if (result.kind !== "kit") return;
+    expect(result.kit.ownedGearConflicts?.some((conflict) => conflict.category === "goggles")).toBe(true);
+    expect(result.kit.warnings.some((warning) => warning.type === "OWNED_GEAR_CONFLICT")).toBe(true);
+  });
 });
 
 describe("racing source regressions", () => {
-  it("keeps genuine Analog/HDZero racers in the catalog", () => {
-    expect(getCuratedDroneRecord("vroom-comet-pro-5-wrekd-analog-elrs")?.sourceStatus).toContain("CORE_COMPETITIVE");
-    expect(getCuratedDroneRecord("iflight-mach-r5-ultra-trainer-hdzero")?.videoSystems).toContain("hdzero");
+  it("keeps genuine Analog/HDZero racers enabled in the runtime catalog", () => {
+    expect(getCuratedDroneRecord("vroom-comet-pro-5-wrekd-analog-elrs")?.recommendationStatus).toBe("ENABLED");
+    expect(getCuratedDroneRecord("iflight-mach-r5-ultra-trainer-hdzero")?.recommendationStatus).toBe("ENABLED");
   });
 
   it("racing + O4 uses the researched Manta path, not Mark5/Vapor role pollution", () => {
     const manta = getCuratedDroneRecord("axisflying-manta5-se-v2-squashed-x-o4-wide-elrs");
     expect(manta?.sourceStatus).toBe("CORE_RECREATIONAL_O4");
-    expect(manta?.recommendationStatus).toBe("CATALOG_ONLY");
+    expect(manta?.recommendationStatus).toBe("ENABLED");
     expect(find("geprc-mark5-o4-pro-wide-x").flightStyles).not.toContain("racing");
     expect(find("geprc-vapor-d5-hd-o4-pro").flightStyles).not.toContain("racing");
   });
