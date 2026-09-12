@@ -1,42 +1,14 @@
 # FPV Flight Forge — Project Handoff
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 ## Active workflow
 
 - Repository: `DaresRoagui/fpv-flight-forge`
 - Working branch: `devin/1788666549-fpv-mvp`
 - Production branch: `main`
-- Pull request: #1
-- Development rule: continue all iterative work on the working branch. Do not merge to `main` until the current iteration has been reviewed in Vercel Preview.
-
-## Current deployment status
-
-- Working-branch preview automation: CONFIGURED.
-- Latest preview workflow run: completed successfully as a GitHub Actions job, but deployment was intentionally skipped because the required Vercel GitHub secrets are currently empty.
-- Missing GitHub Actions secrets:
-  - `VERCEL_TOKEN`
-  - `VERCEL_ORG_ID`
-  - `VERCEL_PROJECT_ID`
-- ChatGPT Vercel connector is connected, but at the time of this handoff it does not expose the existing `fpv-flight-forge` project/team to the connector, so it cannot automatically copy project credentials into GitHub.
-- Do not merge to `main` merely to obtain a visible deployment. Resolve Preview access first.
-
-## Vercel deployment flow
-
-The GitHub workflow `.github/workflows/vercel-deploy.yml` is intentionally split by branch:
-
-1. Push to `devin/1788666549-fpv-mvp` -> Vercel Preview deployment.
-2. Review the Preview URL and validate functionality/visual behavior.
-3. Continue fixing on the same working branch; every push should refresh Preview.
-4. When the project is stable, merge PR #1 into `main`.
-5. Push/merge to `main` -> Vercel Production deployment.
-
-Required GitHub secrets:
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-Never use `--prod` from the working branch.
+- `main` base currently used by this branch: `0e2cf99ae88cc2b75134155531a9d4bba69ac72a`
+- Continue iterative work on the working branch. No production deploy as part of Iteration 2.
 
 ## Product goal
 
@@ -44,129 +16,166 @@ Build a deterministic complete-kit FPV recommender centered on the aircraft:
 
 **Goggles + Drone + Radio + Charger + Batteries**
 
-Recommendations must optimize the complete compatible bundle, not independent product winners.
-
-Core inputs include:
-- budget
-- experience
-- flight style
-- video preference
-- FULL_KIT / DRONE_ONLY / COMPLETE_EXISTING_SETUP
-- advanced priority
-- environment
-- owned gear
-- regulatory region
-
-Hard compatibility must always dominate scoring.
+Hard compatibility must always dominate scoring. Missing research data must remain nullable/gated rather than being replaced by invented values.
 
 ## Research source of truth
 
-Curated research segments 01–24 from the project Library are the source of truth. Do not re-research or silently replace approved products unless explicitly requested.
-
-Important compatibility rules:
-- aircraft profile is the center of compatibility
-- hard-filter video, goggles generation, radio protocol/band, cells, chemistry, connector, exact capacity, physical fit, charger compatibility and completeness before scoring
-- large battery capacity is aircraft-specific, not globally valid/invalid
-- CineLog35 V3: 6S 1100–1300 mAh
-- Cinebot35: 6S 1300–1550 mAh
-- large 7-inch long-range aircraft such as MOZ7 may legitimately use ~3300 mAh
-- Mark5 is freestyle-first and must not win competitive racing
-- racing + explicit DJI O4 must return a curated race-oriented O4 compromise with a tradeoff warning, not an empty result
-- competitive digital racing should generally favor HDZero when video preference permits it
-
-## Iteration status
-
-### Iteration 1 — Drone catalog
-Status: IMPLEMENTED on working branch.
-
-Implemented:
-- curated drone inventory for Segments 01–09
-- 99 auditable source/derived drone records
-- 23 source-complete drones currently enabled for normal recommendation
-- gated WATCHLIST / CONDITIONAL / DO_NOT_DEFAULT / LEGACY records
-- exact AircraftProfile metadata for enabled products
-- distinct technical variants instead of ambiguous merged products
-- HDZero racing inventory represented
-- O4 race-oriented compromise represented
-- Mark5/Vapor-D5 classification corrections
-- catalog sanity tests
-- schema support for video unit and dry weight
-
-Important architecture:
-- `CURATED_DRONE_CATALOG`: complete auditable curated catalog
-- `CURATED_RECOMMENDER_DRONES`: only records safe for normal recommendation
-- missing research data is represented as catalog-only instead of fake prices/specifications
-
-Known Iteration 1 limitation:
-- several Segment 03/04/07 products remain `CATALOG_ONLY` because exact price/battery/connector/variant details need Segments 10–17, especially battery research
-- Meteor65 Pro II O4 contains a research discrepancy that must be reconciled with the battery catalog rather than guessed
-
-## Next task — Iteration 2
-
-Complete and sanitize:
+Primary curated research used so far:
+- Segments 01–09: aircraft
 - Segment 10: analog goggles
-- Segment 11: DJI goggles / O3/O4 generation compatibility
+- Segment 11: DJI goggles / O3-O4 compatibility
 - Segment 12: ELRS radios
 - Segment 13: 1S chargers
 - Segment 14: 2S–6S chargers
-- Segment 15: tinywhoop batteries
+- Segment 15: 1S/2S tinywhoop batteries
 - Segment 16: freestyle/cinematic batteries
 - Segment 17: racing batteries
+- Segment 19: global compatibility/category coherence
+- Segment 20: final recommendation/scoring handoff
 
-Required corrections include:
-- DJI Goggles N3 real display/specs and O4 compatibility; do not claim unsupported O3 compatibility
-- RadioMaster Pocket value/default path should use ELRS when research says so
-- current RadioMaster generation instead of stale generation
-- real HDZero goggle/component path
-- exact battery cells/chemistry/connector/capacity/weight
-- fix misleading battery IDs
-- preserve aircraft-specific 3300 mAh behavior
+Do not silently replace curated CORE products with autonomous discoveries.
 
-Do not perform the major `recommendation.ts` combination/scoring refactor until Iteration 3.
+## Iteration 1 — Drone catalog
 
-## Iteration roadmap
+Status: IMPLEMENTED.
 
-1. Drone catalog — implemented
-2. Goggles/radios/chargers/batteries — next
-3. Bundle candidate generation + complete scoring refactor
-4. Coverage, alternatives, accessories, regulation and UX QA
-5. Product images/assets, final QA and production deploy
+- 99 auditable curated/derived drone records.
+- 23 enabled runtime drone records with exact price + AircraftProfile.
+- WATCHLIST / CONDITIONAL / DO_NOT_DEFAULT / LEGACY gating.
+- Mark5 and Vapor-D5 role corrections.
+- Exact aircraft-specific battery envelopes for enabled aircraft.
+- HDZero racing inventory represented in audit catalog.
 
-## Safety / change rules
+## Iteration 2 — Components and compatibility
 
-- work on `devin/1788666549-fpv-mvp`
-- do not modify `main` directly
-- no production deploy before Preview review
-- no invented specs to satisfy TypeScript/schema
-- preserve ES/EN
-- preserve USD/COP with `COP_PER_USD = 3200`
-- preserve FULL_KIT / DRONE_ONLY / COMPLETE_EXISTING_SETUP
-- keep recommendation deterministic
-- prefer targeted unit/regression tests over large Playwright expansion until final QA
+Status: IMPLEMENTED AND CI-VERIFIED on `devin/1788666549-fpv-mvp`.
 
-## Key files after Iteration 1
+### Curated component inventory
+
+Source-grounded curated catalog: **90 records**
+- goggles: **17**
+- radios: **14**
+- chargers: **18**
+- batteries: **41**
+
+Normal `ENABLED` curated records:
+- goggles: **5**
+- radios: **9**
+- chargers: **9**
+- batteries: **20**
+
+The runtime audit catalog also retains the existing `battery-iflight-fullsend-6s-3300` as the explicit large-pack long-range regression fixture, so runtime battery audit count is 42.
+
+Legacy component catalog before Iteration 2 had:
+- goggles: 6
+- radios: 4
+- chargers: 4
+- batteries: 3
+
+### Architecture added
+
+- `lib/component-catalog-schema.ts`
+- `data/curated-goggles.ts`
+- `data/curated-radios.ts`
+- `data/curated-chargers.ts`
+- `data/curated-batteries.ts`
+- `data/curated-components.ts`
+- `lib/curated-component-products.ts`
+- `tests/component-catalog.test.ts`
+
+`CURATED_COMPONENT_CATALOG` is the complete source-grounded audit catalog.
+`CURATED_RECOMMENDER_COMPONENTS` contains only records safe to enter normal recommendation.
+
+### Important corrections completed
+
+- DJI Goggles N3 is modeled as **single 3.5-inch 1920x1080 LCD, 60Hz**, not OLED.
+- N3 supports DJI O4 / O4 Wide / O4 Pro and explicitly rejects DJI O3.
+- DJI Goggles 3 supports O3 + O4-family units and stores latency by video-unit/mode rather than one fake generic latency.
+- HDZero Goggle 2 is represented as a real Analog + HDZero premium path.
+- RadioMaster Pocket normal value path is ELRS 2.4GHz, not CC2500/FrSky.
+- Current RadioMaster TX15 and TX16S MK3 generations are represented; stale TX16S MKII runtime record is removed.
+- TX15 is selectable 2.4/900, not Gemini-X; GX12 and TX16S MK3 are modeled as true Gemini-X paths.
+- `battery-gnb-1s-530` misleading legacy record is removed. Correct `gnb-1s-530-90c-a30` remains catalog-only until source completeness allows promotion.
+- Batteries now carry cells, chemistry, connector, capacity, weight when source-backed, max charge voltage, balance connector and roles.
+- Chargers now carry supported cell counts, chemistry, channels, storage/discharge, native/accepted connectors, adapter requirements, inputs and external-PSU completeness.
+- BT2.0/A30 compatibility is directional where research supports it; PH2.0 remains distinct.
+- Large battery validity is aircraft-profile-dependent, not globally invalid.
+
+### Compatibility cases covered by tests
+
+- N3 + O3 => invalid.
+- N3 + O4 / O4 Wide / O4 Pro => valid.
+- charger cell-count and chemistry hard filtering.
+- BT2.0 / A30 / PH2.0 behavior.
+- XT30 pack on XT60-native multi-cell charger => incomplete when adapter lead is required.
+- ELRS drone rejects incompatible FrSky radio.
+- 2.4GHz-only Pocket rejects 900MHz-only ELRS receiver.
+- HDZero has goggle + racer inventory + ELRS radio + 6S battery + 6S charger path ready for Iteration 3.
+- CineLog35 V3 + 3300mAh => HARD_INVALID.
+- Cinebot35 + 3300mAh => HARD_INVALID.
+- MOZ7 + 3300mAh => valid/not hard-invalid.
+
+## CI status after Iteration 2
+
+GitHub Actions workflow: `Iteration 2 CI`
+Run ID: `34725118626`
+Verified head before this handoff update: `8d75e4760a6c3a8a3af40708126b046b33fe6773`
+
+Passed:
+- `npm ci`
+- `npm run typecheck`
+- `npm test` — **48/48 tests passed**
+- `npm run build` — Next.js production build succeeded
+
+No deploy was performed by Iteration 2 CI.
+
+## Real blockers / next task — Iteration 3
+
+The data layer is ready; the main remaining work is bundle generation/scoring.
+
+1. `userPreferences.videoSystem` still exposes only `analog | dji_o4 | recommend`; add HDZero selection/recommendation deliberately in Iteration 3.
+2. Real HDZero racing aircraft exist in the audit catalog, but a purpose-built HDZero racer still needs promotion into runtime once exact price + full AircraftProfile requirements are satisfied.
+3. Refactor `recommendation.ts` around complete compatible bundle generation instead of first-match component selection.
+4. Treat adapter/PSU/radio-battery completeness as bundle completeness, not merely product compatibility.
+5. Use component editorial metrics (latency/display/value/ergonomics/charger completeness/etc.) only after hard filters.
+6. Preserve aircraft-specific battery range as a hard compatibility gate.
+7. Do not rework product images yet.
+
+## Iteration 3 target architecture
+
+A. Generate eligible drone candidates from user intent.
+B. Generate compatible goggles/radio/battery/charger combinations per drone.
+C. Reject HARD_INVALID or incomplete bundles.
+D. Score complete bundles and return strongest options/alternatives.
+
+Compatibility must outrank all editorial scores.
+
+## Key files after Iteration 2
 
 - `lib/schema.ts`
-- `lib/catalog-schema.ts`
+- `lib/compat.ts`
 - `lib/products.ts`
+- `lib/catalog-schema.ts`
+- `lib/component-catalog-schema.ts`
 - `lib/curated-drone-products.ts`
-- `data/curated-drones.ts`
-- `data/curated-drones-01.ts`
-- `data/curated-drones-02.ts`
-- `data/curated-drones-03-09-manifest.ts`
-- `data/curated-drones-enabled-03-09.ts`
-- `data/curated-drone-derived-variants.ts`
-- `data/curated-drone-helpers.ts`
+- `lib/curated-component-products.ts`
+- `data/curated-drones*.ts`
+- `data/curated-goggles.ts`
+- `data/curated-radios.ts`
+- `data/curated-chargers.ts`
+- `data/curated-batteries.ts`
+- `data/curated-components.ts`
 - `tests/catalog-sanity.test.ts`
-- `.github/workflows/vercel-deploy.yml`
+- `tests/component-catalog.test.ts`
+- `tests/recommendation.test.ts`
+- `tests/regression.test.ts`
+- `.github/workflows/iteration2-ci.yml`
 - `HANDOFF.md`
 
-## Continuation checklist for the next agent/session
+## Continuation checklist
 
 1. Read this file first.
-2. Confirm current branch and head before changing files.
-3. Inspect the latest Vercel Preview deployment for this branch.
-4. If no Preview exists, verify the three GitHub Vercel secrets before changing deployment logic.
-5. Treat curated research as source of truth.
-6. Continue with Iteration 2 only after resolving any build/type errors exposed by Preview.
-7. Update this `HANDOFF.md` after every completed iteration with head SHA, Preview status and remaining work.
+2. Confirm working branch/head before editing.
+3. Treat Segments 01–20 as source of truth.
+4. Run typecheck + unit tests + production build after every Iteration 3 milestone.
+5. Do not deploy or merge to `main` unless explicitly requested.
