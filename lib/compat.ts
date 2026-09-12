@@ -8,6 +8,8 @@ import {
   VideoSystem,
   ControlProtocol,
 } from "@/lib/schema";
+import { getCuratedComponentRecord } from "@/data/curated-components";
+import type { BatteryProfile, ChargerProfile, FpvVideoUnit } from "@/lib/component-catalog-schema";
 
 // ---------- Generic size-class capacity guardrails (fallback) ----------
 
@@ -98,9 +100,43 @@ function protocolBandsCompatible(a: string | undefined, b: string | undefined): 
   return a === b;
 }
 
+function normalizeConnector(connector: string): string {
+  const upper = connector.trim().toUpperCase().replace(/\s+/g, "");
+  if (upper.startsWith("XT60")) return "XT60";
+  if (upper.startsWith("XT30")) return "XT30";
+  if (upper === "BT2" || upper === "BT2.0") return "BT2.0";
+  if (upper === "PH2" || upper === "PH2.0") return "PH2.0";
+  return upper;
+}
+
 // ---------- Video ----------
 
+function inferDroneVideoUnit(drone: Product): FpvVideoUnit | undefined {
+  const raw = (drone.aircraftProfile?.video.unit ?? "").toUpperCase().replace(/[\s-]+/g, "_");
+  if (raw.includes("O3")) return "DJI_O3";
+  if (raw.includes("O4") && raw.includes("PRO")) return "DJI_O4_PRO";
+  if (raw.includes("O4") && raw.includes("WIDE")) return "DJI_O4_WIDE";
+  if (raw.includes("O4")) return "DJI_O4";
+  if (raw.includes("HDZERO") || raw.includes("HD_ZERO")) return "HDZERO";
+  if (raw.includes("ANALOG")) return "ANALOG_5_8";
+
+  const system = drone.aircraftProfile?.video.system ?? (drone.videoSystems.length === 1 ? drone.videoSystems[0] : undefined);
+  if (system === "analog") return "ANALOG_5_8";
+  if (system === "dji_o3") return "DJI_O3";
+  if (system === "dji_o4") return "DJI_O4";
+  if (system === "hdzero") return "HDZERO";
+  return undefined;
+}
+
 export function videoSystemMatches(goggles: Product, drone: Product): boolean {
+  const curatedGoggles = getCuratedComponentRecord(goggles.id)?.goggleProfile;
+  const unit = inferDroneVideoUnit(drone);
+
+  if (curatedGoggles && unit) {
+    if (curatedGoggles.unsupportedVideoUnits?.includes(unit)) return false;
+    return curatedGoggles.supportedVideoUnits.includes(unit);
+  }
+
   const droneSystem: VideoSystem | undefined =
     drone.aircraftProfile?.video.system ??
     (drone.videoSystems.length === 1 ? drone.videoSystems[0] : undefined);
@@ -135,23 +171,37 @@ export function protocolMatches(radio: Product, drone: Product): boolean {
 
 // ---------- Battery / Drone ----------
 
+function curatedBatteryProfile(battery: Product): BatteryProfile | undefined {
+  return getCuratedComponentRecord(battery.id)?.batteryProfile;
+}
+
+function batteryChemistry(battery: Product): string {
+  return curatedBatteryProfile(battery)?.chemistry ?? battery.keySpecs?.chemistry ?? "";
+}
+
+function batteryCells(battery: Product): number | null {
+  return curatedBatteryProfile(battery)?.cells ?? parseCellCount(battery.keySpecs?.cells);
+}
+
+function batteryConnector(battery: Product): string {
+  return curatedBatteryProfile(battery)?.connector ?? parseList(battery.keySpecs?.connector)[0] ?? "";
+}
+
 function batteryChemistrySupportedByDrone(battery: Product, drone: Product): boolean {
   const allowed = drone.aircraftProfile?.battery.chemistriesAllowed;
+  const chemistry = batteryChemistry(battery).toLowerCase();
   if (allowed && allowed.length > 0) {
-    const batteryChemistry = (battery.keySpecs?.chemistry ?? "").toLowerCase();
-    return allowed.some((c) => c.toLowerCase() === batteryChemistry);
+    return !!chemistry && allowed.some((c) => c.toLowerCase() === chemistry);
   }
   const droneChemistry = parseList(drone.keySpecs?.chemistry).map((s) => s.toLowerCase());
-  const batteryChemistry = (battery.keySpecs?.chemistry ?? "").toLowerCase();
-  if (!droneChemistry.length || !batteryChemistry) return false;
-  return droneChemistry.includes(batteryChemistry);
+  return droneChemistry.length > 0 && !!chemistry && droneChemistry.includes(chemistry);
 }
 
 function batteryCellsSupportedByDrone(battery: Product, drone: Product): boolean {
   const allowed = drone.aircraftProfile?.battery.cellsAllowed;
-  const batteryCells = parseCellCount(battery.keySpecs?.cells);
+  const cells = batteryCells(battery);
   if (allowed && allowed.length > 0) {
-    return batteryCells !== null && allowed.includes(batteryCells);
+    return cells !== null && allowed.includes(cells);
   }
   const droneCells = drone.keySpecs?.cells ?? "";
   const batteryCellsStr = battery.keySpecs?.cells ?? "";
@@ -160,20 +210,29 @@ function batteryCellsSupportedByDrone(battery: Product, drone: Product): boolean
 
 function batteryConnectorSupportedByDrone(battery: Product, drone: Product): boolean {
   const allowedConnector = drone.aircraftProfile?.battery.connector;
-  const batteryConnectors = parseList(battery.keySpecs?.connector).map((s) => s.toLowerCase());
+  const profile = curatedBatteryProfile(battery);
+  const connector = batteryConnector(battery);
+
   if (allowedConnector) {
-    return batteryConnectors.includes(allowedConnector.toLowerCase());
+    if (normalizeConnector(connector) === normalizeConnector(allowedConnector)) return true;
+    // Directional rule from Segment 15: A30 battery -> BT2.0 aircraft is generally compatible.
+    // The reverse is not assumed unless the battery record explicitly says so.
+    return (profile?.connectorCompatibility ?? []).some(
+      (candidate) => normalizeConnector(candidate) === normalizeConnector(allowedConnector)
+    );
   }
-  const droneConnectors = parseList(drone.keySpecs?.connector).map((s) => s.toLowerCase());
-  return batteryConnectors.some((bc) => droneConnectors.includes(bc));
+
+  const droneConnectors = parseList(drone.keySpecs?.connector).map(normalizeConnector);
+  if (droneConnectors.includes(normalizeConnector(connector))) return true;
+  return (profile?.connectorCompatibility ?? []).some((candidate) => droneConnectors.includes(normalizeConnector(candidate)));
 }
 
 export function getBatteryCapacityMah(battery: Product): number | null {
-  return parseCapacityMah(battery.keySpecs?.capacity ?? battery.subcategory);
+  return curatedBatteryProfile(battery)?.capacityMah ?? parseCapacityMah(battery.keySpecs?.capacity ?? battery.subcategory);
 }
 
 function getBatteryWeightG(battery: Product): number | null {
-  return battery.weightG ?? parseWeightG(battery.keySpecs?.weight);
+  return curatedBatteryProfile(battery)?.weightG ?? battery.weightG ?? parseWeightG(battery.keySpecs?.weight);
 }
 
 function getDroneCapacityRange(drone: Product): { min: number; max: number; idealMin: number; idealMax: number } | null {
@@ -262,17 +321,21 @@ export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMa
 
   const maxVoltage = drone.aircraftProfile?.battery.maxFullVoltageV;
   if (maxVoltage !== undefined) {
-    const cellCount = parseCellCount(battery.keySpecs?.cells);
-    const chemistry = (battery.keySpecs?.chemistry ?? "").toLowerCase();
-    if (cellCount && chemistry.includes("lihv")) {
-      const fullVoltage = cellCount * 4.35;
-      if (fullVoltage > maxVoltage + 0.1) {
-        warnings.push({
-          type: "LIHV_VOLTAGE",
-          messageKey: "warnings.lihvVoltage",
-          params: { voltage: fullVoltage.toFixed(1) },
-        });
-      }
+    const profile = curatedBatteryProfile(battery);
+    const cells = batteryCells(battery);
+    const chemistry = batteryChemistry(battery).toLowerCase();
+    const fullVoltage = profile?.maxChargeVoltageV ?? (cells && chemistry.includes("lihv") ? cells * 4.35 : undefined);
+    if (fullVoltage !== undefined && fullVoltage > maxVoltage + 0.1) {
+      return {
+        state: "HARD_INVALID",
+        warnings: [
+          {
+            type: "LIHV_VOLTAGE",
+            messageKey: "warnings.lihvVoltage",
+            params: { voltage: fullVoltage.toFixed(1) },
+          },
+        ],
+      };
     }
   }
 
@@ -285,26 +348,48 @@ export function batteryMatchesDrone(battery: Product, drone: Product): BatteryMa
 
 // ---------- Charger ----------
 
+function curatedChargerProfile(charger: Product): ChargerProfile | undefined {
+  return getCuratedComponentRecord(charger.id)?.chargerProfile;
+}
+
 function chemistrySupported(charger: Product, battery: Product): boolean {
+  const profile = curatedChargerProfile(charger);
+  const chemistry = batteryChemistry(battery).toLowerCase();
+  if (profile) return profile.supportedChemistries.some((value) => value.toLowerCase() === chemistry);
   const chargerChemistry = parseList(charger.keySpecs?.chemistry).map((s) => s.toLowerCase());
-  const batteryChemistry = (battery.keySpecs?.chemistry ?? "").toLowerCase();
-  if (!chargerChemistry.length || !batteryChemistry) return false;
-  return chargerChemistry.includes(batteryChemistry);
+  return chargerChemistry.length > 0 && !!chemistry && chargerChemistry.includes(chemistry);
+}
+
+function chargerCellsSupported(charger: Product, battery: Product): boolean {
+  const profile = curatedChargerProfile(charger);
+  const cells = batteryCells(battery);
+  if (profile) return cells !== null && profile.supportedCells.includes(cells);
+  const supportedCells = charger.keySpecs?.supportedCells ?? "";
+  const batteryCellsStr = battery.keySpecs?.cells ?? "";
+  return !!supportedCells && !!batteryCellsStr && cellRangeIncludes(supportedCells, batteryCellsStr);
 }
 
 function connectorSupported(charger: Product, battery: Product): boolean {
-  const chargerConnectors = parseList(charger.keySpecs?.connector).map((s) => s.toLowerCase());
-  const batteryConnector = (battery.keySpecs?.connector ?? "").toLowerCase();
-  if (chargerConnectors.length === 0 || !batteryConnector) return true;
-  return chargerConnectors.includes(batteryConnector);
+  const profile = curatedChargerProfile(charger);
+  const connector = normalizeConnector(batteryConnector(battery));
+  if (profile) {
+    return profile.acceptedBatteryConnectors.some((accepted) => normalizeConnector(accepted) === connector);
+  }
+  const chargerConnectors = parseList(charger.keySpecs?.connector).map(normalizeConnector);
+  if (chargerConnectors.length === 0 || !connector) return true;
+  return chargerConnectors.includes(connector);
+}
+
+function chargerNeedsAdapter(charger: Product, battery: Product): boolean {
+  const profile = curatedChargerProfile(charger);
+  if (!profile?.adapterRequiredFor?.length) return false;
+  const connector = normalizeConnector(batteryConnector(battery));
+  return profile.adapterRequiredFor.some((candidate) => normalizeConnector(candidate) === connector);
 }
 
 export function chargerMatchesBattery(charger: Product, battery: Product): BatteryMatchResult {
   const warnings: Warning[] = [];
-  const supportedCells = charger.keySpecs?.supportedCells ?? "";
-  const batteryCells = battery.keySpecs?.cells ?? "";
-  const cellsOk =
-    !!supportedCells && !!batteryCells && cellRangeIncludes(supportedCells, batteryCells);
+  const cellsOk = chargerCellsSupported(charger, battery);
   const chemistryOk = chemistrySupported(charger, battery);
   const connectorOk = connectorSupported(charger, battery);
 
@@ -312,11 +397,15 @@ export function chargerMatchesBattery(charger: Product, battery: Product): Batte
     return { state: "HARD_INVALID", warnings };
   }
 
-  if (charger.requiresPsu) {
+  if (charger.requiresPsu || curatedChargerProfile(charger)?.requiresExternalPsu) {
     warnings.push({
       type: "REQUIRES_PSU",
       messageKey: "warnings.requiresPsu",
     });
+    return { state: "INCOMPLETE_KIT", warnings };
+  }
+
+  if (chargerNeedsAdapter(charger, battery)) {
     return { state: "INCOMPLETE_KIT", warnings };
   }
 
