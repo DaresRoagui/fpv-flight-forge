@@ -36,13 +36,16 @@ function raceProfile(
   };
 }
 
-const COMMON = {
+const COMMON: Pick<
+  CuratedDroneRecord,
+  "sourceSegment" | "recommendationStatus" | "state" | "availability" | "flightStyles" | "experienceLevel" | "verifiedAt" | "currentGeneration"
+> = {
   sourceSegment: 7,
-  recommendationStatus: "ENABLED" as const,
-  state: "CORE_SPECIALIST" as const,
-  availability: "available" as const,
-  flightStyles: ["racing"] as const,
-  experienceLevel: ["intermediate", "advanced"] as const,
+  recommendationStatus: "ENABLED",
+  state: "CORE_SPECIALIST",
+  availability: "available",
+  flightStyles: ["racing"],
+  experienceLevel: ["intermediate", "advanced"],
   verifiedAt: "2026-09-06",
   currentGeneration: true,
 };
