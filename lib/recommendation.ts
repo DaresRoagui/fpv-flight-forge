@@ -1,30 +1,33 @@
-import {
-  Product,
-  UserPreferences,
-  KitBundle,
-  RecommendationResult,
-  FlightStyle,
-  VideoSystem,
-  ExperienceLevel,
+import type {
   BundleItem,
-  Warning,
-  Reason,
+  FlightStyle,
+  KitBundle,
+  OwnedGearConflict,
+  Product,
   ProductCategory,
-  OwnedGear,
+  RecommendationResult,
+  UserPreferences,
+  VideoSystem,
+  Warning,
 } from "@/lib/schema";
 import {
-  videoSystemMatches,
-  protocolMatches,
   batteryMatchesDrone,
   chargerMatchesBattery,
   flightStyleMatches,
+  protocolMatches,
   styleIsRecommended,
-  getBatteryCapacityMah,
-  parseWeightG,
+  videoSystemMatches,
 } from "@/lib/compat";
+import { getCuratedComponentRecord } from "@/data/curated-components";
 import { assessRegulation } from "@/lib/regulation";
-
-// ---------- Constants ----------
+import {
+  batteryFitScore,
+  chargerFitScore,
+  droneFitScore,
+  goggleFitScore,
+  radioFitScore,
+  scoreBundleNormalized,
+} from "@/lib/recommendation-scoring";
 
 const DEFAULT_BATTERY_QTY: Record<FlightStyle, number> = {
   tinywhoop: 6,
@@ -34,467 +37,482 @@ const DEFAULT_BATTERY_QTY: Record<FlightStyle, number> = {
   freestyle: 4,
 };
 
-const PSU_PRICE_USD = 35;
-const RADIO_CELLS_PRICE_USD = 25;
+const REQUIRED_EXTRA_PRICES = {
+  psu: 35,
+  radioCells: 25,
+  chargeAdapter: 8,
+};
 
-const EXTRA_PRICES: Record<string, number> = {
+const OPTIONAL_EXTRA_PRICES = {
   props: 8,
   straps: 5,
   basicTools: 15,
   spareFrame: 15,
   buzzer: 10,
-  psu: PSU_PRICE_USD,
-  radioCells: RADIO_CELLS_PRICE_USD,
-  chargeAdapter: 8,
 };
 
-// ---------- Helpers ----------
+const PRUNE = {
+  dronesPerSystem: 8,
+  batteriesPerDrone: 4,
+  gogglesPerDrone: 3,
+  radiosPerDrone: 3,
+  chargersPerBattery: 3,
+};
 
-function batteryQuantity(style: FlightStyle): number {
-  return DEFAULT_BATTERY_QTY[style] ?? 4;
-}
+type CandidateChoice = {
+  product: Product;
+  owned: boolean;
+  warnings: Warning[];
+};
+
+type ScoredBundle = KitBundle & { score: number };
+
+const batteryQuantity = (style: FlightStyle) => DEFAULT_BATTERY_QTY[style] ?? 4;
 
 function videoSystemLabel(videoSystem: VideoSystem): string {
   if (videoSystem === "dji_o4") return "DJI O4";
   if (videoSystem === "dji_o3") return "DJI O3";
-  if (videoSystem === "analog") return "analógico";
   if (videoSystem === "hdzero") return "HDZero";
-  if (videoSystem === "walksnail") return "Walksnail";
+  if (videoSystem === "analog") return "analógico";
   return videoSystem;
 }
 
-function getProductWeightG(product: Product): number | null {
-  if (product.weightG !== undefined) return product.weightG;
-  return parseWeightG(product.keySpecs?.weight);
+function stableProductSort<T extends { product: Product; score: number }>(a: T, b: T): number {
+  if (b.score !== a.score) return b.score - a.score;
+  if (a.product.priceUsd !== b.product.priceUsd) return a.product.priceUsd - b.product.priceUsd;
+  return a.product.id.localeCompare(b.product.id);
 }
 
-function getOwnedProduct(
-  category: ProductCategory,
-  ownedGear: OwnedGear | undefined,
-  products: Product[]
-): Product | undefined {
-  if (!ownedGear) return undefined;
-  const idMap: Record<ProductCategory, string | undefined> = {
-    goggles: ownedGear.gogglesProductId,
-    radio: ownedGear.radioProductId,
-    charger: ownedGear.chargerProductId,
-    battery: ownedGear.batteryProductIds?.[0],
-    drone: undefined,
+function pruneChoices(
+  choices: CandidateChoice[],
+  limit: number,
+  scorer: (product: Product) => number
+): CandidateChoice[] {
+  return choices
+    .map((choice) => ({ ...choice, score: scorer(choice.product) }))
+    .sort(stableProductSort)
+    .slice(0, limit)
+    .map(({ score: _score, ...choice }) => choice);
+}
+
+function optionalExtrasPrice(drone: Product, style: FlightStyle): number {
+  let total = OPTIONAL_EXTRA_PRICES.props;
+  if (style === "tinywhoop") total += OPTIONAL_EXTRA_PRICES.spareFrame;
+  if (style === "freestyle" || style === "racing") {
+    total += OPTIONAL_EXTRA_PRICES.straps + OPTIONAL_EXTRA_PRICES.basicTools;
+  }
+  if (style === "cinematic") total += OPTIONAL_EXTRA_PRICES.straps;
+  if (style === "longRange" && !drone.aircraftProfile?.recovery.selfPoweredBuzzerIncluded) {
+    total += OPTIONAL_EXTRA_PRICES.buzzer;
+  }
+  return total;
+}
+
+function ownedIdFor(category: Exclude<ProductCategory, "drone" | "battery">, prefs: UserPreferences): string | undefined {
+  if (category === "goggles") return prefs.ownedGear?.gogglesProductId;
+  if (category === "radio") return prefs.ownedGear?.radioProductId;
+  if (category === "charger") return prefs.ownedGear?.chargerProductId;
+  return undefined;
+}
+
+function ownedConflict(
+  category: Exclude<ProductCategory, "drone">,
+  productId: string,
+  reasonKey: string
+): OwnedGearConflict {
+  return { category, productId, reasonKey };
+}
+
+function conflictWarning(conflict: OwnedGearConflict): Warning {
+  return {
+    type: "OWNED_GEAR_CONFLICT",
+    messageKey: conflict.reasonKey,
+    params: { category: conflict.category, product: conflict.productId },
   };
-  const id = idMap[category];
-  if (!id) return undefined;
-  return products.find((p) => p.id === id);
 }
 
-function isOwnedCompatible(
-  category: ProductCategory,
-  owned: Product,
-  drone: Product,
-  battery: Product
-): { compatible: boolean; warnings: Warning[] } {
-  if (category === "goggles") {
-    return { compatible: videoSystemMatches(owned, drone), warnings: [] };
-  }
-  if (category === "radio") {
-    return { compatible: protocolMatches(owned, drone), warnings: [] };
-  }
-  if (category === "charger") {
-    const match = chargerMatchesBattery(owned, battery);
-    return {
-      compatible: match.state !== "HARD_INVALID",
-      warnings: match.warnings,
-    };
-  }
-  if (category === "battery") {
-    const match = batteryMatchesDrone(owned, drone);
-    return {
-      compatible: match.state !== "HARD_INVALID",
-      warnings: match.warnings,
-    };
-  }
-  return { compatible: false, warnings: [] };
-}
-
-// ---------- Extras ----------
-
-type Extra = { key: string; priceUsd: number; labelKey: string };
-
-function isItemOwned(bundle: KitBundle, category: ProductCategory): boolean {
-  return bundle.items.some((item) => item.category === category && item.owned);
-}
-
-function getRecommendedExtras(bundle: KitBundle): Extra[] {
-  const extras: Extra[] = [];
-  const style = bundle.drone.recommendedStyles?.[0] ?? bundle.drone.flightStyles[0];
-
-  if (bundle.charger?.requiresPsu) {
-    extras.push({ key: "psu", priceUsd: EXTRA_PRICES.psu, labelKey: "cost.requiredPsu" });
-  }
-  if (bundle.radio && !isItemOwned(bundle, "radio")) {
-    extras.push({ key: "radioCells", priceUsd: EXTRA_PRICES.radioCells, labelKey: "cost.radioBatteries" });
-  }
-
-  if (style === "tinywhoop") {
-    extras.push({ key: "props", priceUsd: EXTRA_PRICES.props, labelKey: "communityValue.commonConsumables" });
-    extras.push({ key: "spareFrame", priceUsd: EXTRA_PRICES.spareFrame, labelKey: "communityValue.commonConsumables" });
-  } else if (style === "freestyle" || style === "racing") {
-    extras.push({ key: "props", priceUsd: EXTRA_PRICES.props, labelKey: "communityValue.commonConsumables" });
-    extras.push({ key: "straps", priceUsd: EXTRA_PRICES.straps, labelKey: "communityValue.commonConsumables" });
-    extras.push({ key: "basicTools", priceUsd: EXTRA_PRICES.basicTools, labelKey: "communityValue.commonConsumables" });
-  } else if (style === "cinematic") {
-    extras.push({ key: "props", priceUsd: EXTRA_PRICES.props, labelKey: "communityValue.commonConsumables" });
-    extras.push({ key: "straps", priceUsd: EXTRA_PRICES.straps, labelKey: "communityValue.commonConsumables" });
-  } else if (style === "longRange") {
-    extras.push({ key: "props", priceUsd: EXTRA_PRICES.props, labelKey: "communityValue.commonConsumables" });
-    if (!bundle.drone.aircraftProfile?.recovery.gpsIncluded) {
-      extras.push({ key: "buzzer", priceUsd: EXTRA_PRICES.buzzer, labelKey: "communityValue.commonConsumables" });
-    }
-  }
-
-  return extras;
-}
-
-// ---------- Scoring ----------
-
-function scoreDrone(drone: Product, prefs: UserPreferences, videoSystem: VideoSystem): number {
-  let score = drone.rating * 3.5;
-  const styleMatch = styleIsRecommended(drone, prefs.style) ? 1 : flightStyleMatches(drone, prefs.style) ? 0.5 : 0;
-  score += styleMatch * 2.5;
-
-  // Mark5 is a freestyle frame, not a competitive racer; avoid it winning racing recommendations.
-  if (prefs.style === "racing" && !drone.recommendedStyles?.includes("racing")) {
-    score -= 8;
-  }
-
-  if (drone.aircraftProfile?.video.system === videoSystem) score += 1;
-  if (drone.availability === "available") score += 1;
-
-  const experienceMap: Record<ExperienceLevel, number> = { beginner: 0, intermediate: 1, advanced: 2 };
-  const userExp = experienceMap[prefs.experience];
-  const droneExp =
-    drone.experienceLevel.length > 0
-      ? Math.max(...drone.experienceLevel.map((e) => experienceMap[e]))
-      : 1;
-  score -= Math.abs(userExp - droneExp) * 0.5;
-
-  if (prefs.advancedPriority === "REPAIRABILITY" && drone.repairabilityScore) {
-    score += drone.repairabilityScore * 0.3;
-  }
-  if (prefs.advancedPriority === "FLIGHT_TIME" && drone.aircraftProfile?.battery.capacityMah.idealMax) {
-    // Prefer drones with larger ideal battery capacity normalized to 10
-    score += Math.min(drone.aircraftProfile.battery.capacityMah.idealMax / 1500, 1) * 1.5;
-  }
-
-  if (prefs.environment === "INDOOR_TIGHT") {
-    if (["WHOOP_65_1S", "WHOOP_75_1S", "CINE_2_5", "CINE_3", "CINE_3_5"].includes(drone.aircraftProfile?.sizeClass ?? "")) {
-      score += 1.5;
-    }
-  } else if (prefs.environment === "OUTDOOR") {
-    if (["FREESTYLE_5", "RACE_5", "LONG_RANGE_7", "CINE_3_5"].includes(drone.aircraftProfile?.sizeClass ?? "")) {
-      score += 1;
-    }
-  }
-
-  return Math.max(0, score);
-}
-
-function scoreBattery(battery: Product, drone: Product, prefs: UserPreferences): number {
-  let score = (battery.rating ?? 5) * 2;
-  const capacity = getBatteryCapacityMah(battery);
-  const range = drone.aircraftProfile?.battery.capacityMah;
-
-  if (capacity !== null && range) {
-    if (capacity >= range.idealMin && capacity <= range.idealMax) {
-      score += 3;
-    } else if (capacity >= range.min && capacity <= range.max) {
-      score += 1.5;
-    }
-    if (prefs.advancedPriority === "FLIGHT_TIME" && capacity >= range.idealMax * 0.9) {
-      score += 1.5;
-    }
-    if (prefs.advancedPriority === "PORTABILITY") {
-      const weight = getProductWeightG(battery) ?? capacity;
-      score += Math.max(0, 1 - weight / 300) * 1.5;
-    }
-  }
-
-  return Math.max(0, score);
-}
-
-function scoreGoggles(goggles: Product, prefs: UserPreferences, videoSystem: VideoSystem): number {
-  let score = (goggles.rating ?? 5) * 2.5;
-  if (goggles.videoSystems.includes(videoSystem)) score += 2;
-  if (prefs.advancedPriority === "LOW_LATENCY" && goggles.subcategory?.toLowerCase().includes("analog")) {
-    score += 1.5;
-  }
-  if (prefs.advancedPriority === "IMAGE_QUALITY" && goggles.videoSystems.includes("dji_o4")) {
-    score += 1.5;
-  }
-  if (goggles.availability === "available") score += 0.5;
-  return Math.max(0, score);
-}
-
-function scoreRadio(radio: Product, prefs: UserPreferences, drone: Product): number {
-  let score = (radio.rating ?? 5) * 2;
-  if (protocolMatches(radio, drone)) score += 2;
-  if (prefs.advancedPriority === "LOW_LATENCY" && radio.protocols.includes("elrs_2.4")) {
-    score += 1;
-  }
-  if (prefs.advancedPriority === "PORTABILITY" && radio.subcategory?.toLowerCase().includes("compact")) {
-    score += 1;
-  }
-  return Math.max(0, score);
-}
-
-function scoreCharger(charger: Product, battery: Product): number {
-  let score = (charger.rating ?? 5) * 2;
-  const match = chargerMatchesBattery(charger, battery);
-  if (match.state !== "HARD_INVALID") score += 2;
-  if (match.state === "VALID") score += 1;
-  if (charger.availability === "available") score += 0.5;
-  return Math.max(0, score);
-}
-
-function scoreBundle(bundle: KitBundle, prefs: UserPreferences, videoSystem: VideoSystem): number {
-  const droneScore = scoreDrone(bundle.drone, prefs, videoSystem);
-  const batteryScore = scoreBattery(bundle.battery, bundle.drone, prefs);
-  const goggleScore = bundle.goggles ? scoreGoggles(bundle.goggles, prefs, videoSystem) : 0;
-  const radioScore = bundle.radio ? scoreRadio(bundle.radio, prefs, bundle.drone) : 0;
-  const chargerScore = bundle.charger ? scoreCharger(bundle.charger, bundle.battery) : 0;
-
-  const weightedRating =
-    droneScore * 0.3 +
-    batteryScore * 0.2 +
-    goggleScore * 0.2 +
-    radioScore * 0.15 +
-    chargerScore * 0.1;
-
-  const budgetRatio = Math.min(bundle.totalPrice / prefs.budget, 1);
-  const budgetBonus = budgetRatio * 2;
-  const overBudgetPenalty =
-    bundle.totalPrice > prefs.budget ? -((bundle.totalPrice - prefs.budget) / prefs.budget) * 5 : 0;
-
-  let priorityBonus = 0;
-  if (prefs.advancedPriority === "VALUE" && bundle.totalPrice <= prefs.budget * 0.9) {
-    priorityBonus += 1.5;
-  }
-  if (prefs.advancedPriority === "PORTABILITY") {
-    const totalWeight =
-      (getProductWeightG(bundle.drone) ?? 0) +
-      (getProductWeightG(bundle.battery) ?? 0) * bundle.batteryQuantity +
-      (bundle.goggles ? getProductWeightG(bundle.goggles) ?? 0 : 0) +
-      (bundle.radio ? getProductWeightG(bundle.radio) ?? 0 : 0);
-    priorityBonus += Math.max(0, 1 - totalWeight / 2500) * 1.5;
-  }
-
-  let value = weightedRating + budgetBonus + overBudgetPenalty + priorityBonus;
-  if (styleIsRecommended(bundle.drone, prefs.style)) value += 0.05;
-  return Math.max(0, value);
-}
-
-// ---------- Bundle builders ----------
-
-type ScoredBundle = KitBundle & { score: number };
-
-function buildBundle(
+function resolveStaticChoices(
+  category: "goggles" | "radio",
   prefs: UserPreferences,
   products: Product[],
   drone: Product,
-  videoSystem: VideoSystem
-): ScoredBundle[] {
-  const scope = prefs.scope ?? "FULL_KIT";
-  const batteries = products.filter((p) => p.category === "battery");
-  const chargers = products.filter((p) => p.category === "charger");
-  const gogglesList = products.filter((p) => p.category === "goggles");
-  const radios = products.filter((p) => p.category === "radio");
+  score: (product: Product) => number
+): { choices: CandidateChoice[]; conflicts: OwnedGearConflict[] } {
+  const source = products.filter((product) => product.category === category);
+  const compatible = (product: Product) =>
+    category === "goggles" ? videoSystemMatches(product, drone) : protocolMatches(product, drone);
+  const normal = source.filter(compatible).map((product) => ({ product, owned: false, warnings: [] }));
+  const conflicts: OwnedGearConflict[] = [];
 
-  const compatibleBatteries = batteries
-    .map((b) => ({ product: b, match: batteryMatchesDrone(b, drone) }))
-    .filter(({ match }) => match.state !== "HARD_INVALID");
-
-  if (compatibleBatteries.length === 0) return [];
-
-  const results: ScoredBundle[] = [];
-
-  for (const { product: battery, match: batteryMatch } of compatibleBatteries) {
-    const qty = batteryQuantity(prefs.style);
-
-    // Owned-gear resolution
-    const ownedBattery = getOwnedProduct("battery", prefs.ownedGear, products);
-    let selectedBattery = battery;
-    let batteryOwned = false;
-    if (scope === "COMPLETE_EXISTING_SETUP" && ownedBattery) {
-      const ownedCheck = isOwnedCompatible("battery", ownedBattery, drone, selectedBattery);
-      if (ownedCheck.compatible) {
-        selectedBattery = ownedBattery;
-        batteryOwned = true;
+  if ((prefs.scope ?? "FULL_KIT") === "COMPLETE_EXISTING_SETUP") {
+    const ownedId = ownedIdFor(category, prefs);
+    if (ownedId) {
+      const owned = source.find((product) => product.id === ownedId);
+      if (owned && compatible(owned)) {
+        return { choices: [{ product: owned, owned: true, warnings: [] }], conflicts };
       }
+      conflicts.push(ownedConflict(category, ownedId, "ownedGear.incompatible"));
     }
-
-    const bundleWarnings: Warning[] = [...batteryMatch.warnings];
-    const bundleReasons: Reason[] = [];
-
-    // Charger selection
-    let selectedCharger: Product | undefined;
-    const ownedCharger = getOwnedProduct("charger", prefs.ownedGear, products);
-    if (scope === "COMPLETE_EXISTING_SETUP" && ownedCharger) {
-      const ownedCheck = chargerMatchesBattery(ownedCharger, selectedBattery);
-      if (ownedCheck.state !== "HARD_INVALID") {
-        selectedCharger = ownedCharger;
-        bundleWarnings.push(...ownedCheck.warnings);
-      }
-    }
-    if (!selectedCharger) {
-      const charger = chargers.find((c) => chargerMatchesBattery(c, selectedBattery).state !== "HARD_INVALID");
-      if (charger) selectedCharger = charger;
-    }
-
-    if (scope === "FULL_KIT" || scope === "COMPLETE_EXISTING_SETUP") {
-      if (!selectedCharger) continue;
-    }
-
-    // Goggles and radio selection (required for full/complete, optional reference for DRONE_ONLY)
-    let selectedGoggles: Product | undefined;
-    let gogglesOwned = false;
-    const ownedGoggles = getOwnedProduct("goggles", prefs.ownedGear, products);
-    if (scope === "COMPLETE_EXISTING_SETUP" && ownedGoggles && videoSystemMatches(ownedGoggles, drone)) {
-      selectedGoggles = ownedGoggles;
-      gogglesOwned = true;
-    } else {
-      selectedGoggles = gogglesList.find((g) => videoSystemMatches(g, drone));
-    }
-    if (!selectedGoggles && scope !== "DRONE_ONLY") continue;
-
-    let selectedRadio: Product | undefined;
-    let radioOwned = false;
-    const ownedRadio = getOwnedProduct("radio", prefs.ownedGear, products);
-    if (scope === "COMPLETE_EXISTING_SETUP" && ownedRadio && protocolMatches(ownedRadio, drone)) {
-      selectedRadio = ownedRadio;
-      radioOwned = true;
-    } else {
-      selectedRadio = radios.find((r) => protocolMatches(r, drone));
-    }
-    if (!selectedRadio && scope !== "DRONE_ONLY") continue;
-
-    // Build items and price
-    const items: BundleItem[] = [];
-    let totalPrice = 0;
-
-    const addItem = (category: ProductCategory, product: Product, owned: boolean, included: boolean, reference?: boolean) => {
-      items.push({ category, product, owned, includedInPrice: included, referenceOnly: reference });
-      if (included) totalPrice += product.priceUsd * (category === "battery" ? qty : 1);
-    };
-
-    addItem("drone", drone, false, true);
-    addItem("battery", selectedBattery, batteryOwned, true);
-
-    if (scope !== "DRONE_ONLY") {
-      if (selectedGoggles) addItem("goggles", selectedGoggles, gogglesOwned, !gogglesOwned);
-      if (selectedRadio) addItem("radio", selectedRadio, radioOwned, !radioOwned);
-      if (selectedCharger) addItem("charger", selectedCharger, false, true);
-    } else {
-      if (selectedGoggles) addItem("goggles", selectedGoggles, false, false, true);
-      if (selectedRadio) addItem("radio", selectedRadio, false, false, true);
-      if (selectedCharger) addItem("charger", selectedCharger, false, false, true);
-    }
-
-    // Reuse owned gear explanations
-    if (scope === "COMPLETE_EXISTING_SETUP") {
-      items.forEach((item) => {
-        if (item.owned) {
-          bundleReasons.push({
-            category: "VALUE",
-            messageKey: "ownedGear.compatibleReuse",
-            params: { product: item.product.name },
-          });
-        }
-      });
-    }
-
-    // Racing + O4 warning
-    if (prefs.style === "racing" && videoSystem === "dji_o4") {
-      bundleWarnings.push({
-        type: "RACING_COMPROMISE",
-        messageKey: "warnings.racingO4Compromise",
-      });
-    }
-
-    // Mark5 not winning racing
-    if (prefs.style === "racing" && drone.id.includes("mark5")) {
-      // Already penalized by style recommendation, but add explicit warning if it surfaces
-      bundleWarnings.push({
-        type: "VIDEO_TRADEOFF",
-        messageKey: "warnings.videoTradeoff",
-      });
-    }
-
-    const corePrice = totalPrice;
-
-    const bundle: KitBundle = {
-      scope,
-      drone,
-      battery: selectedBattery,
-      batteryQuantity: qty,
-      goggles: selectedGoggles,
-      radio: selectedRadio,
-      charger: selectedCharger,
-      items,
-      totalPrice,
-      corePrice,
-      extrasPrice: 0,
-      totalWithExtras: totalPrice,
-      explanation: "",
-      reasons: bundleReasons,
-      warnings: bundleWarnings,
-      regulatory: assessRegulation(drone, selectedBattery, prefs.regulatoryRegion ?? "OTHER", prefs.operationPurpose ?? "RECREATIONAL"),
-    };
-
-    const extrasReal = getRecommendedExtras(bundle);
-    bundle.extrasPrice = extrasReal.reduce((sum, e) => sum + e.priceUsd, 0);
-    bundle.totalWithExtras = bundle.totalPrice + bundle.extrasPrice;
-
-    bundle.score = scoreBundle(bundle, prefs, videoSystem);
-    results.push(bundle as ScoredBundle);
   }
 
-  return results;
+  const limit = category === "goggles" ? PRUNE.gogglesPerDrone : PRUNE.radiosPerDrone;
+  return { choices: pruneChoices(normal, limit, score), conflicts };
 }
 
-// ---------- Extras recomputation helper ----------
+function resolveBatteryChoices(
+  prefs: UserPreferences,
+  products: Product[],
+  drone: Product
+): { choices: CandidateChoice[]; conflicts: OwnedGearConflict[] } {
+  const batteries = products.filter((product) => product.category === "battery");
+  const valid = batteries
+    .map((product) => ({ product, match: batteryMatchesDrone(product, drone) }))
+    .filter(({ match }) => match.state !== "HARD_INVALID");
+  const conflicts: OwnedGearConflict[] = [];
 
-// (extras are computed inside buildBundle, no top-level export needed)
-
-// ---------- Main recommendation ----------
-
-export function recommendKit(prefs: UserPreferences, products: Product[]): RecommendationResult {
-  const systems: VideoSystem[] =
-    prefs.videoSystem === "recommend" ? ["analog", "dji_o4"] : [prefs.videoSystem];
-
-  const drones = products.filter((p) => p.category === "drone");
-
-  const allCandidates: ScoredBundle[] = [];
-
-  for (const videoSystem of systems) {
-    for (const drone of drones) {
-      if (!drone.videoSystems.includes(videoSystem)) {
-        // If drone has a single profile video system, still try if it matches
-        if (drone.aircraftProfile?.video.system !== videoSystem && !drone.videoSystems.includes(videoSystem)) {
-          continue;
-        }
-      }
-
-      const styleFit =
-        styleIsRecommended(drone, prefs.style) || flightStyleMatches(drone, prefs.style);
-      if (!styleFit) continue;
-
-      // Experience filter: beginners should not get advanced-only drones unless no alternative
-      const droneExp = drone.experienceLevel;
-      if (prefs.experience === "beginner" && !droneExp.includes("beginner") && !droneExp.includes("intermediate")) {
+  if ((prefs.scope ?? "FULL_KIT") === "COMPLETE_EXISTING_SETUP" && prefs.ownedGear?.batteryProductIds?.length) {
+    const ownedChoices: CandidateChoice[] = [];
+    for (const ownedId of prefs.ownedGear.batteryProductIds) {
+      const owned = batteries.find((product) => product.id === ownedId);
+      if (!owned) {
+        conflicts.push(ownedConflict("battery", ownedId, "ownedGear.notInCatalog"));
         continue;
       }
+      const match = batteryMatchesDrone(owned, drone);
+      if (match.state === "HARD_INVALID") {
+        conflicts.push(ownedConflict("battery", ownedId, "ownedGear.batteryIncompatible"));
+        continue;
+      }
+      ownedChoices.push({ product: owned, owned: true, warnings: match.warnings });
+    }
+    if (ownedChoices.length > 0) {
+      return {
+        choices: pruneChoices(ownedChoices, PRUNE.batteriesPerDrone, (product) => batteryFitScore(product, drone, prefs)),
+        conflicts,
+      };
+    }
+  }
 
-      const bundles = buildBundle(prefs, products, drone, videoSystem);
-      allCandidates.push(...bundles);
+  return {
+    choices: pruneChoices(
+      valid.map(({ product, match }) => ({ product, owned: false, warnings: match.warnings })),
+      PRUNE.batteriesPerDrone,
+      (product) => batteryFitScore(product, drone, prefs)
+    ),
+    conflicts,
+  };
+}
+
+function resolveChargerChoices(
+  prefs: UserPreferences,
+  products: Product[],
+  battery: Product
+): { choices: CandidateChoice[]; conflicts: OwnedGearConflict[] } {
+  const chargers = products.filter((product) => product.category === "charger");
+  const conflicts: OwnedGearConflict[] = [];
+  const compatible = chargers
+    .map((product) => ({ product, match: chargerMatchesBattery(product, battery) }))
+    .filter(({ match }) => match.state !== "HARD_INVALID")
+    .map(({ product, match }) => ({ product, owned: false, warnings: match.warnings }));
+
+  if ((prefs.scope ?? "FULL_KIT") === "COMPLETE_EXISTING_SETUP") {
+    const ownedId = prefs.ownedGear?.chargerProductId;
+    if (ownedId) {
+      const owned = chargers.find((product) => product.id === ownedId);
+      if (owned) {
+        const match = chargerMatchesBattery(owned, battery);
+        if (match.state !== "HARD_INVALID") {
+          return { choices: [{ product: owned, owned: true, warnings: match.warnings }], conflicts };
+        }
+      }
+      conflicts.push(ownedConflict("charger", ownedId, "ownedGear.chargerIncompatible"));
+    }
+  }
+
+  return {
+    choices: pruneChoices(compatible, PRUNE.chargersPerBattery, (product) => chargerFitScore(product, battery, prefs)),
+    conflicts,
+  };
+}
+
+function requiredExtrasCost(
+  scope: UserPreferences["scope"],
+  radio: CandidateChoice | undefined,
+  charger: CandidateChoice | undefined,
+  battery: Product
+): { price: number; warnings: Warning[] } {
+  if (scope === "DRONE_ONLY") return { price: 0, warnings: [] };
+
+  let price = 0;
+  const warnings: Warning[] = [];
+
+  if (radio && !radio.owned) {
+    const radioProfile = getCuratedComponentRecord(radio.product.id)?.radioProfile;
+    if (radioProfile?.batteryIncluded === false) price += REQUIRED_EXTRA_PRICES.radioCells;
+  }
+
+  if (charger) {
+    const match = chargerMatchesBattery(charger.product, battery);
+    const chargerProfile = getCuratedComponentRecord(charger.product.id)?.chargerProfile;
+    if (charger.product.requiresPsu || chargerProfile?.requiresExternalPsu) {
+      price += REQUIRED_EXTRA_PRICES.psu;
+      warnings.push({ type: "REQUIRES_PSU", messageKey: "warnings.requiresPsu" });
+    }
+    if (match.state === "INCOMPLETE_KIT" && !(charger.product.requiresPsu || chargerProfile?.requiresExternalPsu)) {
+      price += REQUIRED_EXTRA_PRICES.chargeAdapter;
+    }
+  }
+
+  return { price, warnings };
+}
+
+function buildBundleFromChoices(
+  prefs: UserPreferences,
+  drone: Product,
+  batteryChoice: CandidateChoice,
+  gogglesChoice: CandidateChoice | undefined,
+  radioChoice: CandidateChoice | undefined,
+  chargerChoice: CandidateChoice | undefined,
+  conflicts: OwnedGearConflict[]
+): ScoredBundle | null {
+  const scope = prefs.scope ?? "FULL_KIT";
+  const qty = batteryQuantity(prefs.style);
+
+  if (scope !== "DRONE_ONLY" && (!gogglesChoice || !radioChoice || !chargerChoice)) return null;
+  if (gogglesChoice && !videoSystemMatches(gogglesChoice.product, drone)) return null;
+  if (radioChoice && !protocolMatches(radioChoice.product, drone)) return null;
+  if (batteryMatchesDrone(batteryChoice.product, drone).state === "HARD_INVALID") return null;
+  if (chargerChoice && chargerMatchesBattery(chargerChoice.product, batteryChoice.product).state === "HARD_INVALID") return null;
+  if (scope !== "DRONE_ONLY" && gogglesChoice?.product.requiresReceiverModule) return null;
+
+  const items: BundleItem[] = [];
+  let productPrice = 0;
+  const addItem = (
+    category: ProductCategory,
+    product: Product,
+    owned: boolean,
+    includedInPrice: boolean,
+    referenceOnly = false,
+    quantity = 1
+  ) => {
+    items.push({ category, product, owned, includedInPrice, referenceOnly, quantity });
+    if (includedInPrice) productPrice += product.priceUsd * quantity;
+  };
+
+  addItem("drone", drone, false, true);
+
+  if (scope === "DRONE_ONLY") {
+    addItem("battery", batteryChoice.product, false, false, true, qty);
+    if (gogglesChoice) addItem("goggles", gogglesChoice.product, false, false, true);
+    if (radioChoice) addItem("radio", radioChoice.product, false, false, true);
+    if (chargerChoice) addItem("charger", chargerChoice.product, false, false, true);
+  } else {
+    addItem("battery", batteryChoice.product, batteryChoice.owned, !batteryChoice.owned, false, qty);
+    if (gogglesChoice) addItem("goggles", gogglesChoice.product, gogglesChoice.owned, !gogglesChoice.owned);
+    if (radioChoice) addItem("radio", radioChoice.product, radioChoice.owned, !radioChoice.owned);
+    if (chargerChoice) addItem("charger", chargerChoice.product, chargerChoice.owned, !chargerChoice.owned);
+  }
+
+  const requiredExtras = requiredExtrasCost(scope, radioChoice, chargerChoice, batteryChoice.product);
+  const totalPrice = productPrice + requiredExtras.price;
+  const warnings: Warning[] = [
+    ...batteryChoice.warnings,
+    ...(chargerChoice?.warnings ?? []),
+    ...requiredExtras.warnings,
+    ...conflicts.map(conflictWarning),
+  ];
+
+  if (prefs.style === "racing" && drone.aircraftProfile?.video.system === "dji_o4") {
+    warnings.push({ type: "RACING_COMPROMISE", messageKey: "warnings.racingO4Compromise" });
+  }
+  if (drone.priceNote?.toLowerCase().includes("budget proxy")) {
+    warnings.push({ type: "PRICE_ESTIMATE", messageKey: "warnings.priceEstimate" });
+  }
+
+  const bundle: KitBundle = {
+    scope,
+    drone,
+    battery: batteryChoice.product,
+    batteryQuantity: qty,
+    goggles: gogglesChoice?.product,
+    radio: radioChoice?.product,
+    charger: chargerChoice?.product,
+    items,
+    totalPrice,
+    corePrice: totalPrice,
+    extrasPrice: optionalExtrasPrice(drone, prefs.style),
+    totalWithExtras: totalPrice + optionalExtrasPrice(drone, prefs.style),
+    explanation: "",
+    reasons: [
+      { category: "STYLE", messageKey: "recommendation.bundleStyleFit", params: { drone: drone.name } },
+      { category: "COMPATIBILITY", messageKey: "recommendation.hardCompatibilityPassed" },
+    ],
+    warnings,
+    ownedGearConflicts: conflicts.length ? conflicts : undefined,
+    regulatory: assessRegulation(
+      drone,
+      batteryChoice.product,
+      prefs.regulatoryRegion ?? "OTHER",
+      prefs.operationPurpose ?? "RECREATIONAL"
+    ),
+  };
+
+  if (scope === "COMPLETE_EXISTING_SETUP") {
+    for (const item of items.filter((item) => item.owned)) {
+      bundle.reasons.push({
+        category: "VALUE",
+        messageKey: "ownedGear.compatibleReuse",
+        params: { product: item.product.name },
+      });
+    }
+  }
+
+  const breakdown = scoreBundleNormalized(bundle, prefs);
+  bundle.scoreBreakdown = breakdown;
+  bundle.score = breakdown.total;
+  return bundle as ScoredBundle;
+}
+
+function generateBundlesForDrone(
+  prefs: UserPreferences,
+  products: Product[],
+  drone: Product
+): ScoredBundle[] {
+  const scope = prefs.scope ?? "FULL_KIT";
+  const batteryResult = resolveBatteryChoices(prefs, products, drone);
+  if (batteryResult.choices.length === 0) return [];
+
+  const gogglesResult = resolveStaticChoices(
+    "goggles",
+    prefs,
+    products,
+    drone,
+    (product) => goggleFitScore(product, drone, prefs)
+  );
+  const radioResult = resolveStaticChoices(
+    "radio",
+    prefs,
+    products,
+    drone,
+    (product) => radioFitScore(product, drone, prefs)
+  );
+
+  if (scope !== "DRONE_ONLY" && (gogglesResult.choices.length === 0 || radioResult.choices.length === 0)) return [];
+
+  const gogglesChoices = scope === "DRONE_ONLY" ? gogglesResult.choices.slice(0, 1) : gogglesResult.choices;
+  const radioChoices = scope === "DRONE_ONLY" ? radioResult.choices.slice(0, 1) : radioResult.choices;
+  const bundles: ScoredBundle[] = [];
+
+  for (const battery of batteryResult.choices) {
+    const chargerResult = resolveChargerChoices(prefs, products, battery.product);
+    if (scope !== "DRONE_ONLY" && chargerResult.choices.length === 0) continue;
+    const chargerChoices = scope === "DRONE_ONLY" ? chargerResult.choices.slice(0, 1) : chargerResult.choices;
+    const conflicts = [...batteryResult.conflicts, ...gogglesResult.conflicts, ...radioResult.conflicts, ...chargerResult.conflicts];
+
+    const gs: Array<CandidateChoice | undefined> = gogglesChoices.length ? gogglesChoices : [undefined];
+    const rs: Array<CandidateChoice | undefined> = radioChoices.length ? radioChoices : [undefined];
+    const cs: Array<CandidateChoice | undefined> = chargerChoices.length ? chargerChoices : [undefined];
+
+    for (const goggles of gs) {
+      for (const radio of rs) {
+        for (const charger of cs) {
+          const bundle = buildBundleFromChoices(prefs, drone, battery, goggles, radio, charger, conflicts);
+          if (bundle) bundles.push(bundle);
+        }
+      }
+    }
+  }
+
+  return bundles;
+}
+
+function systemsFor(prefs: UserPreferences): VideoSystem[] {
+  if (prefs.videoSystem !== "recommend") return [prefs.videoSystem];
+  if (prefs.style === "racing") return ["hdzero", "analog", "dji_o4"];
+  return ["analog", "dji_o4"];
+}
+
+function eligibleDronesForSystem(
+  prefs: UserPreferences,
+  products: Product[],
+  videoSystem: VideoSystem
+): Product[] {
+  return products
+    .filter((product) => product.category === "drone")
+    .filter((drone) => (drone.aircraftProfile?.video.system ?? drone.videoSystems[0]) === videoSystem || drone.videoSystems.includes(videoSystem))
+    .filter((drone) => styleIsRecommended(drone, prefs.style) || flightStyleMatches(drone, prefs.style))
+    .filter((drone) => {
+      if (prefs.experience !== "beginner") return true;
+      return drone.experienceLevel.includes("beginner") || drone.experienceLevel.includes("intermediate");
+    })
+    .map((product) => ({ product, score: droneFitScore(product, prefs) }))
+    .sort(stableProductSort)
+    .slice(0, PRUNE.dronesPerSystem)
+    .map(({ product }) => product);
+}
+
+function bundleSignature(bundle: KitBundle): string {
+  return [
+    bundle.drone.id,
+    bundle.battery.id,
+    bundle.goggles?.id ?? "-",
+    bundle.radio?.id ?? "-",
+    bundle.charger?.id ?? "-",
+  ].join("|");
+}
+
+function sortBundles(a: ScoredBundle, b: ScoredBundle): number {
+  if (b.score !== a.score) return b.score - a.score;
+  if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
+  return bundleSignature(a).localeCompare(bundleSignature(b));
+}
+
+function chooseAlternatives(primary: ScoredBundle, candidates: ScoredBundle[]): KitBundle[] {
+  const remaining = candidates.filter((candidate) => bundleSignature(candidate) !== bundleSignature(primary));
+  if (remaining.length === 0) return [];
+
+  const closeEnough = remaining.filter((candidate) => candidate.score >= primary.score - 1.5);
+  const valuePool = closeEnough.length ? closeEnough : remaining;
+  const value = [...valuePool].sort((a, b) => {
+    if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
+    return sortBundles(a, b);
+  })[0];
+
+  const premiumPool = remaining.filter(
+    (candidate) =>
+      bundleSignature(candidate) !== bundleSignature(value) &&
+      candidate.totalPrice > primary.totalPrice * 1.05
+  );
+  const premium = premiumPool.sort((a, b) => {
+    const aQuality = (a.scoreBreakdown?.droneStyleFit ?? 0) + (a.scoreBreakdown?.gogglesFit ?? 0) + (a.scoreBreakdown?.futureProofing ?? 0);
+    const bQuality = (b.scoreBreakdown?.droneStyleFit ?? 0) + (b.scoreBreakdown?.gogglesFit ?? 0) + (b.scoreBreakdown?.futureProofing ?? 0);
+    if (bQuality !== aQuality) return bQuality - aQuality;
+    return sortBundles(a, b);
+  })[0];
+
+  const alternatives: KitBundle[] = [];
+  if (value && value.totalPrice < primary.totalPrice * 0.98) {
+    value.alternativeRole = "VALUE";
+    alternatives.push(value);
+  }
+  if (premium) {
+    premium.alternativeRole = "PREMIUM";
+    alternatives.push(premium);
+  }
+  return alternatives;
+}
+
+export function recommendKit(prefs: UserPreferences, products: Product[]): RecommendationResult {
+  const systems = systemsFor(prefs);
+  const allCandidates: ScoredBundle[] = [];
+  const seen = new Set<string>();
+
+  for (const system of systems) {
+    for (const drone of eligibleDronesForSystem(prefs, products, system)) {
+      const key = `${system}:${drone.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allCandidates.push(...generateBundlesForDrone(prefs, products, drone));
     }
   }
 
@@ -502,26 +520,26 @@ export function recommendKit(prefs: UserPreferences, products: Product[]): Recom
     return {
       kind: "insufficient",
       minBudget: Infinity,
-      message: `No existe una configuración completa recomendable dentro de este presupuesto.`,
+      message: "No pudimos construir un bundle técnicamente completo con las restricciones actuales.",
     };
   }
 
-  const withinBudget = allCandidates.filter((c) => c.totalPrice <= prefs.budget);
-
+  const withinBudget = allCandidates.filter((candidate) => candidate.totalPrice <= prefs.budget).sort(sortBundles);
   if (withinBudget.length === 0) {
-    const cheapest = allCandidates.slice().sort((a, b) => a.totalPrice - b.totalPrice)[0];
+    const cheapest = [...allCandidates].sort((a, b) => {
+      if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
+      return sortBundles(a, b);
+    })[0];
     return {
       kind: "insufficient",
       minBudget: cheapest.totalPrice,
-      message: `No encontramos un kit completo recomendable dentro de US$${prefs.budget} en sistema ${videoSystemLabel(
-        cheapest.drone.aircraftProfile?.video.system ?? cheapest.drone.videoSystems[0]
-      )}.`,
+      message: `No encontramos un kit completo recomendable dentro de US$${prefs.budget}. El mínimo compatible actual es aproximadamente US$${cheapest.totalPrice.toFixed(2)} en ${videoSystemLabel(cheapest.drone.aircraftProfile?.video.system ?? cheapest.drone.videoSystems[0])}.`,
       kit: cheapest,
     };
   }
 
-  withinBudget.sort((a, b) => b.score - a.score);
-  const chosen = withinBudget[0];
-
-  return { kind: "kit", kit: chosen };
+  const primary = withinBudget[0];
+  primary.alternativeRole = "PRIMARY";
+  const alternatives = chooseAlternatives(primary, withinBudget);
+  return { kind: "kit", kit: primary, ...(alternatives.length ? { alternatives } : {}) };
 }
