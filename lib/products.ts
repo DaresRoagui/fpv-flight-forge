@@ -3,6 +3,7 @@ import { PRODUCTS } from "@/data/products";
 import { PRODUCT_OVERRIDES } from "@/lib/catalog-profiles";
 import { CURATED_DRONE_PRODUCTS } from "@/lib/curated-drone-products";
 import { CURATED_COMPONENT_PRODUCTS } from "@/lib/curated-component-products";
+import { applyProductAssets } from "@/data/product-assets";
 
 const RESEARCH_STATE_GATES: Record<string, ProductState> = {
   // Superseded or explicitly demoted by curated Segments 01–09.
@@ -68,9 +69,11 @@ function mergeCuratedProducts(base: Product[], curated: Product[]): Product[] {
   return [...byId.values()];
 }
 
-const ALL_PRODUCTS: Product[] = mergeCuratedProducts(
-  mergeCuratedProducts(mergeProductOverrides(PRODUCTS), CURATED_DRONE_PRODUCTS),
-  CURATED_COMPONENT_PRODUCTS
+const ALL_PRODUCTS: Product[] = applyProductAssets(
+  mergeCuratedProducts(
+    mergeCuratedProducts(mergeProductOverrides(PRODUCTS), CURATED_DRONE_PRODUCTS),
+    CURATED_COMPONENT_PRODUCTS
+  )
 );
 
 const DEFAULT_RECOMMENDATION_PRODUCTS: Product[] = ALL_PRODUCTS.filter((product) => {
