@@ -1,4 +1,23 @@
-import type { Product, RecommendedExtra, UserPreferences } from "@/lib/schema";
+import type { Product, UserPreferences } from "@/lib/schema";
+
+export type AccessoryNecessity =
+  | "REQUIRED_TO_USE"
+  | "STRONGLY_RECOMMENDED"
+  | "REPAIR_REQUIRED"
+  | "FLIGHT_STYLE_SPECIFIC"
+  | "OPTIONAL_QUALITY_OF_LIFE";
+
+export type RecommendedExtra = {
+  id: string;
+  name: string;
+  section: "PRACTICAL" | "SAFETY_REPAIR" | "OPTIONAL";
+  necessity: AccessoryNecessity;
+  quantity: number;
+  priceUsd: number | null;
+  onboardWeightG: number;
+  productUrl?: string;
+  reason: { es: string; en: string };
+};
 
 const URLS = {
   finder2: "https://www.getfpv.com/batteries/battery-accessories.html?manufacturer=1476",
