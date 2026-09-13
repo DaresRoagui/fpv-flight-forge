@@ -65,11 +65,21 @@ describe("Iteration 5 recommendation asset discovery", () => {
     }
 
     const audit = [...seen.values()]
-      .map((entry) => ({ ...entry, roles: [...entry.roles].sort() }))
+      .map((entry) => {
+        const product = products.find((candidate) => candidate.id === entry.id)!;
+        return {
+          ...entry,
+          roles: [...entry.roles].sort(),
+          productUrl: product.productUrl ?? null,
+          images: product.images,
+          sources: product.sources ?? [],
+        };
+      })
       .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 
     const byCategory = Object.fromEntries(["drone", "goggles", "radio", "charger", "battery"].map((category) => [category, audit.filter((p) => p.category === category).map((p) => p.id)]));
     console.log("V5_ASSET_SURFACE=" + JSON.stringify({ kits, count: audit.length, byCategory }));
+    console.log("V5_ASSET_METADATA=" + JSON.stringify(audit));
 
     expect(kits).toBeGreaterThan(0);
     expect(audit.length).toBeGreaterThan(0);
