@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/app/components/LocaleProvider";
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
     "Answer a few questions and get a complete, compatible FPV drone kit recommendation with goggles, drone, radio, charger and batteries.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang={DEFAULT_LOCALE}

@@ -1,4 +1,4 @@
-import { Recommender } from "@/app/components/Recommender";
+import { RecommenderV4 } from "@/app/components/RecommenderV4";
 import { LocaleSwitcher } from "@/app/components/LocaleSwitcher";
 
 export default function Home() {
@@ -10,7 +10,7 @@ export default function Home() {
           <LocaleSwitcher />
         </div>
       </header>
-      <Recommender />
+      <RecommenderV4 />
     </main>
   );
 }

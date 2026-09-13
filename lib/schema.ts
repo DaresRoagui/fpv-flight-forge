@@ -178,6 +178,7 @@ export const productSchema = z.object({
   category: productCategorySchema,
   subcategory: z.string().optional(),
   priceUsd: z.number().nonnegative(),
+  priceNote: z.string().optional(),
   rating: z.number().min(0).max(10).optional().default(5),
   videoSystems: z.array(videoSystemSchema),
   protocols: z.array(controlProtocolSchema),
@@ -225,7 +226,7 @@ export const userPreferencesSchema = z.object({
   budget: z.number().positive(),
   experience: experienceLevelSchema,
   style: flightStyleSchema,
-  videoSystem: z.enum(["analog", "dji_o4", "recommend"]),
+  videoSystem: z.enum(["analog", "dji_o4", "hdzero", "recommend"]),
   scope: recommendationScopeSchema.optional().default("FULL_KIT"),
   advancedPriority: advancedPrioritySchema.optional().default("BALANCED"),
   environment: flightEnvironmentSchema.optional(),
@@ -257,6 +258,8 @@ export const warningTypeSchema = z.enum([
   "STOCK_LIMITED",
   "LEGACY_PRODUCT",
   "ASPECT_RATIO",
+  "OWNED_GEAR_CONFLICT",
+  "PRICE_ESTIMATE",
   "REGULATORY_THRESHOLD_CROSSED",
   "REGULATORY_INFO_STALE",
   "NO_EXACT_TAKEOFF_WEIGHT",
@@ -308,6 +311,26 @@ export type RegulatoryAssessment = {
   warnings: Warning[];
 };
 
+export type BundleScoreBreakdown = {
+  droneStyleFit: number;
+  compatibilityConfidence: number;
+  budgetEfficiency: number;
+  batteryFit: number;
+  gogglesFit: number;
+  radioFit: number;
+  chargerFit: number;
+  availability: number;
+  experienceFit: number;
+  futureProofing: number;
+  total: number;
+};
+
+export type OwnedGearConflict = {
+  category: Exclude<ProductCategory, "drone">;
+  productId: string;
+  reasonKey: string;
+};
+
 export type KitBundle = {
   scope: RecommendationScope;
   drone: Product;
@@ -324,6 +347,9 @@ export type KitBundle = {
   explanation: string;
   reasons: Reason[];
   warnings: Warning[];
+  ownedGearConflicts?: OwnedGearConflict[];
+  scoreBreakdown?: BundleScoreBreakdown;
+  alternativeRole?: "PRIMARY" | "VALUE" | "PREMIUM";
   regulatory?: RegulatoryAssessment;
   score?: number;
 };

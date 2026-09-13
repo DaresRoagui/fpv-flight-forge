@@ -7,6 +7,23 @@ function fallbackImage(category: string): string {
   return `/images/${category}.svg`;
 }
 
+const QUICK_SPEC_KEYS: Record<Product["category"], string[]> = {
+  drone: ["videoUnit", "cells", "connector"],
+  goggles: ["displayType", "refreshHz", "videoUnits"],
+  radio: ["protocol", "rfBands", "maxRfPower"],
+  charger: ["supportedCells", "channels", "storage"],
+  battery: ["cells", "capacity", "connector"],
+};
+
+function quickSpecs(product: Product): string[] {
+  const specs = product.keySpecs ?? {};
+  return QUICK_SPEC_KEYS[product.category]
+    .map((key) => specs[key])
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .slice(0, 3);
+}
+
 export function ProductCard({
   product,
   label,
@@ -31,7 +48,7 @@ export function ProductCard({
   const [imageSrc, setImageSrc] = useState(
     localized.images[0] || fallbackImage(product.category)
   );
-
+  const specs = quickSpecs(product);
   const unitPrice = localized.priceUsd;
 
   return (
@@ -46,7 +63,7 @@ export function ProductCard({
           src={imageSrc}
           alt={localized.name}
           fill
-          className="object-contain p-6"
+          className="object-contain p-5 sm:p-6"
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           onError={() => setImageSrc(fallbackImage(product.category))}
         />
@@ -65,8 +82,18 @@ export function ProductCard({
             </span>
           )}
         </div>
-        <h3 className="mt-1 text-lg font-semibold text-zinc-900">{localized.name}</h3>
-        <div className="mt-auto flex items-center justify-between pt-4">
+        <div className="mt-2 text-xs font-medium uppercase tracking-wide text-zinc-400">{localized.brand}</div>
+        <h3 className="mt-1 text-lg font-semibold leading-snug text-zinc-900">{localized.name}</h3>
+        {specs.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5" data-testid="product-quick-specs">
+            {specs.map((spec) => (
+              <span key={spec} className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
+                {spec}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
           <div className="text-lg font-semibold text-zinc-900">
             {!includedInPrice && !referenceOnly
               ? t("scope.alreadyOwned")
@@ -79,7 +106,7 @@ export function ProductCard({
           <button
             data-testid="product-card-details"
             onClick={() => onDetail(product)}
-            className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:bg-zinc-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
+            className="shrink-0 rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:bg-zinc-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
           >
             {t("buttons.details")}
           </button>

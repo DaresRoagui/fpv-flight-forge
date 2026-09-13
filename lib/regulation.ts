@@ -2,6 +2,7 @@ import { Product, RegulatoryRegion, OperationPurpose, RegulatoryAssessment, Warn
 import { parseWeightG } from "@/lib/compat";
 
 export function getProductWeightG(product: Product): number | null {
+  if (product.aircraftProfile?.dryWeightG !== undefined) return product.aircraftProfile.dryWeightG;
   if (product.weightG !== undefined) return product.weightG;
   return parseWeightG(product.keySpecs?.weight);
 }
@@ -40,6 +41,20 @@ export function assessRegulation(
     };
   }
 
+  // "Not sure" intentionally avoids claiming a registration exemption. The
+  // weight remains visible, but the user gets neutral guidance instead.
+  if (purpose === "NOT_SURE") {
+    return {
+      region,
+      purpose,
+      estimatedTakeoffWeightG,
+      weightThresholdG,
+      status: "CHECK_LOCAL_RULES",
+      messageKey: "regulation.generalDisclaimer",
+      warnings: [],
+    };
+  }
+
   if (region === "CO") {
     if (purpose === "COMMERCIAL_OR_SPECIFIC") {
       return {
@@ -49,7 +64,7 @@ export function assessRegulation(
         weightThresholdG,
         status: "REGISTRATION_REQUIRED",
         messageKey: "regulation.coCommercial",
-        warnings: [warning("REGULATORY_THRESHOLD_CROSSED", "warnings.regulatoryThresholdCrossed")],
+        warnings: [],
       };
     }
 
@@ -73,7 +88,7 @@ export function assessRegulation(
         weightThresholdG,
         status: "REGISTRATION_REQUIRED",
         messageKey: "regulation.usPart107",
-        warnings: [warning("REGULATORY_THRESHOLD_CROSSED", "warnings.regulatoryThresholdCrossed")],
+        warnings: [],
       };
     }
 
@@ -94,7 +109,7 @@ export function assessRegulation(
       purpose,
       estimatedTakeoffWeightG,
       weightThresholdG,
-      status: estimatedTakeoffWeightG < 250 ? "LIGHTWEIGHT_BENEFIT" : "REGISTRATION_REQUIRED",
+      status: estimatedTakeoffWeightG < 250 ? "LIGHTWEIGHT_BENEFIT" : "REGISTRATION_STILL_APPLIES",
       messageKey: estimatedTakeoffWeightG < 250 ? "regulation.euSub250" : "regulation.euRegistration",
       warnings: [],
     };
@@ -119,5 +134,5 @@ export function regulatoryBadgeText(
     return t("regulation.unknownWeight");
   }
   const weight = Math.round(assessment.estimatedTakeoffWeightG);
-  return t(assessment.messageKey, { weight });
+  return t(assessment.messageKey, { weight, threshold: assessment.weightThresholdG ?? 0 });
 }

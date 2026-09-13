@@ -33,7 +33,7 @@ function buildPrefs(overrides: Partial<UserPreferences>): UserPreferences {
 describe("drone-centric battery compatibility", () => {
   it("CineLog35 V3 O4 accepts 1300mAh and rejects 3300mAh", () => {
     const drone = find("geprc-cinelog35-v3-o4-pro-elrs");
-    const ok = find("battery-ovonic-6s-1300");
+    const ok = find("ovonic-6s-1300-100c");
     const tooBig = find("battery-iflight-fullsend-6s-3300");
     expect(batteryMatchesDrone(ok, drone).state).not.toBe("HARD_INVALID");
     expect(batteryMatchesDrone(tooBig, drone).state).toBe("HARD_INVALID");
@@ -51,25 +51,23 @@ describe("drone-centric battery compatibility", () => {
     expect(batteryMatchesDrone(battery, drone).state).not.toBe("HARD_INVALID");
   });
 
-  it("CineLog35 charger combination is valid", () => {
-    expect(chargerMatchesBattery(find("charger-hota-t6"), find("battery-ovonic-6s-1300")).state).not.toBe("HARD_INVALID");
+  it("CineLog35 charger combination is electrically supported", () => {
+    expect(chargerMatchesBattery(find("hota-t6"), find("ovonic-6s-1300-100c")).state).not.toBe("HARD_INVALID");
   });
 });
 
 describe("recommendation scope and owned gear", () => {
-  it("DRONE_ONLY keeps total price at drone + batteries only", () => {
+  it("DRONE_ONLY charges only the drone and keeps battery/system as references", () => {
     const result = recommendKit(
       buildPrefs({ budget: 600, style: "freestyle", videoSystem: "analog", scope: "DRONE_ONLY", experience: "intermediate" }),
       allProducts
     );
     expect(result.kind).toBe("kit");
     if (result.kind !== "kit") return;
-    const pricedIds = result.kit.items.filter((item) => item.includedInPrice).map((item) => item.category);
-    expect(pricedIds).toContain("drone");
-    expect(pricedIds).toContain("battery");
-    expect(pricedIds).not.toContain("goggles");
-    expect(pricedIds).not.toContain("radio");
-    expect(pricedIds).not.toContain("charger");
+    const priced = result.kit.items.filter((item) => item.includedInPrice);
+    expect(priced.map((item) => item.category)).toEqual(["drone"]);
+    expect(result.kit.totalPrice).toBe(result.kit.drone.priceUsd);
+    expect(result.kit.items.find((item) => item.category === "battery")?.referenceOnly).toBe(true);
   });
 
   it("COMPLETE_EXISTING_SETUP reuses owned goggles and excludes them from price", () => {
@@ -80,7 +78,7 @@ describe("recommendation scope and owned gear", () => {
         videoSystem: "dji_o4",
         experience: "intermediate",
         scope: "COMPLETE_EXISTING_SETUP",
-        ownedGear: { gogglesProductId: "goggles-dji-goggles-3" },
+        ownedGear: { gogglesProductId: "dji-goggles-3" },
       }),
       allProducts
     );
@@ -90,18 +88,36 @@ describe("recommendation scope and owned gear", () => {
     expect(goggleItem?.owned).toBe(true);
     expect(goggleItem?.includedInPrice).toBe(false);
   });
+
+  it("surfaces an incompatible owned goggle instead of silently ignoring it", () => {
+    const result = recommendKit(
+      buildPrefs({
+        budget: 1200,
+        style: "cinematic",
+        videoSystem: "dji_o4",
+        experience: "intermediate",
+        scope: "COMPLETE_EXISTING_SETUP",
+        ownedGear: { gogglesProductId: "fatshark-echo-analog" },
+      }),
+      allProducts
+    );
+    expect(result.kind).toBe("kit");
+    if (result.kind !== "kit") return;
+    expect(result.kit.ownedGearConflicts?.some((conflict) => conflict.category === "goggles")).toBe(true);
+    expect(result.kit.warnings.some((warning) => warning.type === "OWNED_GEAR_CONFLICT")).toBe(true);
+  });
 });
 
 describe("racing source regressions", () => {
-  it("keeps genuine Analog/HDZero racers in the catalog", () => {
-    expect(getCuratedDroneRecord("vroom-comet-pro-5-wrekd-analog-elrs")?.sourceStatus).toContain("CORE_COMPETITIVE");
-    expect(getCuratedDroneRecord("iflight-mach-r5-ultra-trainer-hdzero")?.videoSystems).toContain("hdzero");
+  it("keeps genuine Analog/HDZero racers enabled in the runtime catalog", () => {
+    expect(getCuratedDroneRecord("vroom-comet-pro-5-wrekd-analog-elrs")?.recommendationStatus).toBe("ENABLED");
+    expect(getCuratedDroneRecord("iflight-mach-r5-ultra-trainer-hdzero")?.recommendationStatus).toBe("ENABLED");
   });
 
   it("racing + O4 uses the researched Manta path, not Mark5/Vapor role pollution", () => {
     const manta = getCuratedDroneRecord("axisflying-manta5-se-v2-squashed-x-o4-wide-elrs");
     expect(manta?.sourceStatus).toBe("CORE_RECREATIONAL_O4");
-    expect(manta?.recommendationStatus).toBe("CATALOG_ONLY");
+    expect(manta?.recommendationStatus).toBe("ENABLED");
     expect(find("geprc-mark5-o4-pro-wide-x").flightStyles).not.toContain("racing");
     expect(find("geprc-vapor-d5-hd-o4-pro").flightStyles).not.toContain("racing");
   });
@@ -130,14 +146,14 @@ describe("flight environment and image path", () => {
 });
 
 describe("regulatory weight assessment", () => {
-  it("historical Cetus Pro + 1S remains directly assessable below Colombia 200g", () => {
-    const assessment = assessRegulation(find("drone-betafpv-cetus-pro"), find("battery-gnb-1s-530"), "CO", "RECREATIONAL");
+  it("historical Cetus Pro + current 1S remains directly assessable below Colombia 200g", () => {
+    const assessment = assessRegulation(find("drone-betafpv-cetus-pro"), find("betafpv-lava-ii-1s-320"), "CO", "RECREATIONAL");
     expect(assessment.estimatedTakeoffWeightG).toBeLessThan(200);
     expect(assessment.status).toBe("NO_REGISTRATION_BY_WEIGHT");
   });
 
   it("curated CineLog35 V3 + 6S 1300 is over US 250g", () => {
-    const assessment = assessRegulation(find("geprc-cinelog35-v3-o4-pro-elrs"), find("battery-ovonic-6s-1300"), "US", "RECREATIONAL");
+    const assessment = assessRegulation(find("geprc-cinelog35-v3-o4-pro-elrs"), find("ovonic-6s-1300-100c"), "US", "RECREATIONAL");
     expect(assessment.estimatedTakeoffWeightG).toBeGreaterThan(250);
     expect(assessment.status).toBe("REGISTRATION_REQUIRED");
   });
