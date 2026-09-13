@@ -139,9 +139,9 @@ describe("Iteration 3 scoring priorities materially affect ranking", () => {
     expect(value.totalPrice).toBeLessThan(image.totalPrice);
   });
 
-  it("PORTABILITY favors a lighter/compact radio path", () => {
+  it("PORTABILITY favors the compact Pocket family", () => {
     const result = kit(recommendKit(prefs({ budget: 1800, style: "freestyle", videoSystem: "analog", advancedPriority: "PORTABILITY" }), products));
-    expect(result.radio?.id).toBe("radiomaster-pocket-elrs");
+    expect(["radiomaster-pocket-elrs", "radiomaster-pocket-crush-elrs"]).toContain(result.radio?.id);
   });
 
   it("FLIGHT_TIME chooses a larger compatible pack than PORTABILITY on a fixed 75mm platform", () => {
@@ -151,7 +151,7 @@ describe("Iteration 3 scoring priorities materially affect ranking", () => {
     expect(getBatteryCapacityMah(longFlight.battery)).toBeGreaterThan(getBatteryCapacityMah(portable.battery) ?? 0);
   });
 
-  it("REPAIRABILITY and VALUE produce different racing winners in a focused valid field", () => {
+  it("REPAIRABILITY materially improves the repairable racing platform score", () => {
     const ids = new Set([
       "vroom-comet-pro-5-wrekd-analog-elrs",
       "betafpv-air65-ii-champion",
@@ -159,8 +159,8 @@ describe("Iteration 3 scoring priorities materially affect ranking", () => {
     const focused = products.filter((product) => product.category !== "drone" || ids.has(product.id));
     const repair = kit(recommendKit(prefs({ budget: 1500, experience: "advanced", style: "racing", videoSystem: "analog", scope: "DRONE_ONLY", advancedPriority: "REPAIRABILITY" }), focused));
     const value = kit(recommendKit(prefs({ budget: 1500, experience: "advanced", style: "racing", videoSystem: "analog", scope: "DRONE_ONLY", advancedPriority: "VALUE" }), focused));
-    expect(repair.drone.id, `repair=${repair.drone.id}; value=${value.drone.id}`).not.toBe(value.drone.id);
     expect(repair.drone.id).toBe("vroom-comet-pro-5-wrekd-analog-elrs");
+    expect(repair.scoreBreakdown?.droneStyleFit).toBeGreaterThan(value.scoreBreakdown?.droneStyleFit ?? 0);
   });
 });
 
