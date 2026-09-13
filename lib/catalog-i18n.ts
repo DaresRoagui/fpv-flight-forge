@@ -22,7 +22,35 @@ function unwrap(raw: { fpvCatalogV2?: CatalogDictionary } & Record<string, unkno
   return convertPlaceholders(raw.fpvCatalogV2 ?? {}) as CatalogDictionary;
 }
 
+const FINAL_RECOMMENDATION_TEXT: Record<"es" | "en", CatalogDictionary> = {
+  es: {
+    recommendation: {
+      bundleStyleFit: "La plataforma encaja con el estilo de vuelo seleccionado.",
+      hardCompatibilityPassed: "Todos los componentes superaron la compatibilidad técnica obligatoria.",
+    },
+  },
+  en: {
+    recommendation: {
+      bundleStyleFit: "The platform fits the selected flight style.",
+      hardCompatibilityPassed: "Every component passed the required hard compatibility checks.",
+    },
+  },
+};
+
+function withFinalText(locale: "es" | "en", raw: { fpvCatalogV2?: CatalogDictionary } & Record<string, unknown>): CatalogDictionary {
+  const base = unwrap(raw);
+  const final = FINAL_RECOMMENDATION_TEXT[locale];
+  return {
+    ...base,
+    ...final,
+    recommendation: {
+      ...((base.recommendation as CatalogDictionary | undefined) ?? {}),
+      ...((final.recommendation as CatalogDictionary | undefined) ?? {}),
+    },
+  };
+}
+
 export const CATALOG_V2: Record<"es" | "en", CatalogDictionary> = {
-  es: unwrap(esRaw as { fpvCatalogV2?: CatalogDictionary } & Record<string, unknown>),
-  en: unwrap(enRaw as { fpvCatalogV2?: CatalogDictionary } & Record<string, unknown>),
+  es: withFinalText("es", esRaw as { fpvCatalogV2?: CatalogDictionary } & Record<string, unknown>),
+  en: withFinalText("en", enRaw as { fpvCatalogV2?: CatalogDictionary } & Record<string, unknown>),
 };
