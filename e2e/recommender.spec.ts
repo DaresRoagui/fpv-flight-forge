@@ -50,13 +50,21 @@ async function completeQuiz(
   }
 }
 
-test.describe("Iteration 4 high-value browser flows", () => {
-  test("beginner full kit stays progressive and shows separated practical extras", async ({ page }) => {
+async function expectNoHorizontalOverflow(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+}
+
+test.describe("Final high-value browser flows", () => {
+  test("beginner full kit stays progressive and renders real product assets", async ({ page }) => {
     await completeQuiz(page, { budget: "900", style: "tinywhoop", experience: "beginner", environment: "INDOOR_TIGHT", video: "analog" });
     await expect(page.getByTestId("result-title")).toBeVisible();
     await expect(page.getByTestId("result-products").getByTestId("product-card")).toHaveCount(5);
     await expect(page.getByTestId("recommended-extras")).toBeVisible();
     await expect(page.getByTestId("beginner-learning-note")).toBeVisible();
+    await expect(page.getByTestId("result-products").locator("img").first()).toHaveAttribute("src", /^https:\/\//);
+    await expect(page.getByTestId("result-products").getByTestId("product-quick-specs").first()).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: "test-results/final-desktop.png", fullPage: true });
   });
 
   test("budget shortfall keeps the closest valid kit and minimum budget on screen", async ({ page }) => {
@@ -95,7 +103,8 @@ test.describe("Iteration 4 high-value browser flows", () => {
     await expect(page.getByTestId("kit-composition")).toContainText(/HDZero|Mach R5|Hawk Apex/i);
   });
 
-  test("language currency and regulation settings persist independently", async ({ page }) => {
+  test("mobile language currency regulation and result layout remain responsive", async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
     await page.goto("/");
     await page.selectOption("#language-select", "en");
     await page.selectOption("#currency-select", "usd");
@@ -109,5 +118,7 @@ test.describe("Iteration 4 high-value browser flows", () => {
     await expect(page.getByTestId("result-title")).toContainText(/kit/i);
     await expect(page.getByTestId("regulatory-badge")).toBeVisible();
     await expect(page.getByTestId("regulatory-badge")).toContainText(/United States|U\.S\.|FAA/i);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: "test-results/final-mobile.png", fullPage: true });
   });
 });
