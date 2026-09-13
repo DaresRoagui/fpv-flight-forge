@@ -64,6 +64,10 @@ async function expectVisibleProductImagesLoaded(page: Page) {
   }, undefined, { timeout: 20_000 });
 }
 
+async function expectNoRawTranslationKeys(page: Page) {
+  await expect(page.locator("body")).not.toContainText("recommendation.");
+}
+
 test.describe("Final high-value browser flows", () => {
   test("beginner full kit stays progressive and renders real product assets", async ({ page }) => {
     await completeQuiz(page, { budget: "900", style: "tinywhoop", experience: "beginner", environment: "INDOOR_TIGHT", video: "analog" });
@@ -75,6 +79,7 @@ test.describe("Final high-value browser flows", () => {
     await expect(page.getByTestId("result-products").getByTestId("product-quick-specs").first()).toBeVisible();
     await expectVisibleProductImagesLoaded(page);
     await expectNoHorizontalOverflow(page);
+    await expectNoRawTranslationKeys(page);
 
     await page.getByTestId("result-products").getByTestId("product-card-details").first().click();
     await expect(page.getByTestId("product-modal")).toBeVisible();
@@ -138,6 +143,7 @@ test.describe("Final high-value browser flows", () => {
     await expect(page.getByTestId("regulatory-badge")).toContainText(/United States|U\.S\.|FAA/i);
     await expectVisibleProductImagesLoaded(page);
     await expectNoHorizontalOverflow(page);
+    await expectNoRawTranslationKeys(page);
     await page.screenshot({ path: "test-results/final-mobile.png", fullPage: true });
   });
 });

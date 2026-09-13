@@ -2,78 +2,80 @@
 
 Last updated: 2026-09-13
 
-## Active workflow
+## Current repository state
 
 - Repository: `DaresRoagui/fpv-flight-forge`
 - Working branch: `devin/1788666549-fpv-mvp`
+- Working branch head before this handoff commit: `63f1f6cb4e1c876617507ba9266753d59ad25f30`
 - Production branch: `main`
-- Continue iterative work on the working branch.
-- Do not deploy or merge to `main` unless explicitly requested.
+- `main` and the working branch are currently **diverged**. The working branch is 8 commits ahead and 2 commits behind `main` relative to their common merge base.
+- Do not blindly force/fast-forward one branch over the other. Reconcile the 2 `main`-only commits before a final merge.
+- Old PR #1 is already merged/closed and does not represent the current final branch state.
 
 ## Product goal
 
-Deterministic FPV recommender centered on the aircraft:
+A deterministic FPV recommender that builds a technically coherent bundle around the aircraft:
 
 **Goggles + Drone + Radio + Charger + Batteries**
 
-Hard compatibility always dominates scoring. Missing research data stays nullable/gated rather than invented. Practical accessories are a separate layer and must never make an invalid core bundle valid.
+Hard compatibility always wins over scoring/UX preferences. Missing source data remains nullable/gated rather than invented. Practical accessories are a separate layer and never make an invalid core bundle valid.
 
-## Source of truth used through Iteration 4
+## Sources of truth
 
-- 01–09: aircraft
-- 10–11: analog/DJI goggles and video-unit compatibility
+- 01–09: aircraft catalog / roles / variants
+- 10–11: analog + DJI goggles and O3/O4 compatibility
 - 12: ELRS radios
 - 13–14: chargers
 - 15–17: batteries
 - 18: indispensable accessories / spares / safety
-- 19: global compatibility/category coherence
-- 20: final recommendation/scoring model
+- 19: global compatibility/category audit
+- 20: scoring / recommendation matrix
 - 21: regulatory weight/country UX
-- 22: localization/currency implementation
-- 23: Medellín/community needs and progressive UX
+- 22: localization/currency
+- 23: community/Medellín questionnaire and UX needs
 
 ## Iteration 1 — aircraft catalog
 
-Status: IMPLEMENTED.
+Status: COMPLETE.
 
 - 99 auditable curated/derived drone records at Iteration 1 completion.
 - 23 runtime-enabled records at Iteration 1 completion.
-- Product-state gating: CORE / VALUE / PREMIUM / SPECIALIST / CONDITIONAL / WATCHLIST / DO_NOT_DEFAULT / LEGACY.
-- AircraftProfile is the source of truth for exact battery/video/control requirements.
-- Mark5 and Vapor-D5 role corrections.
+- `AircraftProfile` became the source of truth for battery/video/control compatibility.
+- Mark5 and Vapor-D5 role corrections implemented.
+- Historical/conditional/watchlist/legacy states retained for audit but gated from normal recommendations.
 
-## Iteration 2 — components + hard compatibility
+## Iteration 2 — goggles/radios/chargers/batteries + hard compatibility
 
-Status: IMPLEMENTED AND CI-VERIFIED.
+Status: COMPLETE.
 
-Curated audit catalog:
+Curated audit catalog at Iteration 2 completion:
 - goggles: 17
 - radios: 14
 - chargers: 18
 - batteries: 41 curated + explicit Fullsend 3300 long-range runtime regression fixture
 
 Important corrections:
-- DJI Goggles N3: LCD 60Hz, O4-family path, no O3.
+- DJI Goggles N3: LCD, O4-family path, no O3.
 - DJI Goggles 3: O3 + O4 family.
-- HDZero Goggle 2 real runtime path.
-- RadioMaster Pocket normal value path is ELRS 2.4GHz.
+- HDZero Goggle 2 runtime path.
+- RadioMaster Pocket value path is ELRS.
 - current TX15 / TX16S MK3 generation represented.
-- battery cells/chemistry/connector/capacity/weight source-backed.
-- charger cell/chemistry/channel/storage/input/PSU/adapter completeness.
-- BT2.0/A30 directional behavior and PH2.0 distinction.
-- large battery validity depends on AircraftProfile, not a global mAh cap.
+- exact battery cells / chemistry / connector / capacity / weight where source-backed.
+- chargers model cell range, chemistry, channels, storage, input, PSU/adapters.
+- BT2.0/A30 behavior modeled directionally; PH2.0 stays distinct.
+- battery validity depends on `AircraftProfile`, not a global mAh ceiling.
 
-## Iteration 3 — complete-bundle engine
+## Iteration 3 — complete bundle recommendation engine
 
-Status: IMPLEMENTED AND CI-VERIFIED.
+Status: COMPLETE.
 
 Architecture:
-1. select eligible drones from intent;
-2. hard-filter battery/goggles/radio/charger against each drone/AircraftProfile;
-3. deterministic top-N pruning;
+1. select eligible drones from user intent;
+2. hard-filter batteries/goggles/radios/chargers against each drone/AircraftProfile;
+3. deterministic top-N candidate pruning;
 4. evaluate complete bundle combinations;
-5. reject remaining invalid/incomplete bundles;
-6. score complete bundles and return strongest options.
+5. reject invalid/incomplete bundles;
+6. score full bundles and return strongest options.
 
 Pruning caps:
 - drones/system: 8
@@ -82,7 +84,7 @@ Pruning caps:
 - radios/drone: 3
 - chargers/battery: 3
 
-Normalized Segment-20 scoring:
+Normalized Segment-20 scoring base:
 - droneStyleFit 24%
 - compatibilityConfidence 20%
 - budgetEfficiency 14%
@@ -94,192 +96,146 @@ Normalized Segment-20 scoring:
 - experienceFit 3%
 - futureProofing 2%
 
-Advanced priorities materially affect ranking:
-BALANCED / LOW_LATENCY / IMAGE_QUALITY / VALUE / PORTABILITY / FLIGHT_TIME / REPAIRABILITY.
+Advanced priorities materially alter ranking:
+`BALANCED`, `LOW_LATENCY`, `IMAGE_QUALITY`, `VALUE`, `PORTABILITY`, `FLIGHT_TIME`, `REPAIRABILITY`.
 
-Scope behavior:
-- FULL_KIT: all required purchased core components consume budget.
-- DRONE_ONLY: only drone consumes budget; compatibility references are still returned.
-- COMPLETE_EXISTING_SETUP: compatible owned gear is reused at zero purchase cost; incompatible gear becomes an explicit OWNED_GEAR_CONFLICT.
+Scopes:
+- `FULL_KIT`: every required purchased core component consumes budget.
+- `DRONE_ONLY`: only drone consumes budget; required compatibility references are still shown.
+- `COMPLETE_EXISTING_SETUP`: compatible owned gear is reused at zero cost; incompatible owned gear becomes an explicit conflict.
 
 Racing:
-- real purpose-built Analog and HDZero race paths.
-- recommend/ANY can favor Analog or HDZero.
-- explicit O4 never silently switches ecosystem and returns the curated O4 race compromise with warning.
+- purpose-built Analog and HDZero racers can win.
+- `recommend` can choose Analog or HDZero.
+- explicit O4 never silently switches ecosystem; returns curated O4 racing compromise plus warning.
 
-Critical regressions retained:
-- CineLog35 V3 + 3300mAh HARD_INVALID.
-- Cinebot35 + 3300mAh HARD_INVALID.
-- supported MOZ7/7-inch long-range + 3300mAh valid.
+Critical battery regressions:
+- CineLog35 V3 + 3300mAh invalid.
+- Cinebot35 + 3300mAh invalid.
+- supported MOZ7 / large 7-inch long-range + 3300mAh valid.
 
-## Iteration 4 — functional coverage + recommendation UX
+## Iteration 4 — functional coverage + UX
 
-Status: IMPLEMENTED. Final CI should be read from the latest `Iteration 4 CI` run on this branch before claiming a future change is green.
+Status: COMPLETE.
 
-### Progressive questionnaire
+Implemented:
+- progressive questionnaire in `lib/questionnaire.ts` + `RecommenderV4`;
+- `Environment` materially changes tinywhoop / micro-like / cinematic ranking;
+- automated high-value recommendation coverage target >=95%;
+- closest valid kit + minimum budget for true budget shortfall;
+- Primary / Value / Premium alternatives;
+- practical accessories/consumables from Segment 18 separated from the core bundle;
+- ready-to-fly regulatory weight logic for CO / US / EU-EASA with non-absolute guidance;
+- `preferSimplerWeightClass` as a secondary soft ranking preference;
+- ES/EN and fixed COP/USD 3200;
+- warnings, reasons, DRONE_ONLY references, owned-gear reuse/conflicts;
+- 6 focused Chromium flows instead of an exhaustive E2E explosion.
 
-New `lib/questionnaire.ts` and `RecommenderV4` flow:
+## Iteration 5 — assets, presentation, final QA
 
-- scope first;
-- budget;
-- style;
-- experience;
-- environment only for tinywhoop / current micro-like freestyle / cinematic;
-- video;
-- owned gear only for COMPLETE_EXISTING_SETUP;
-- advanced priority/regulatory options only for advanced pilots.
+Status: **IMPLEMENTATION COMPLETE ON THE WORKING BRANCH; FINAL PRODUCTION RECONCILIATION/DEPLOYMENT STILL REQUIRES BRANCH reconciliation and independent Vercel verification.**
 
-Beginner FULL_KIT flows are intentionally short and do not force owned-gear or advanced-option screens.
+### Recommendation-visible product asset audit
 
-HDZero is exposed deliberately for racing/advanced use rather than presented as a default beginner choice.
+Exactly **57 products** can appear in Primary / Value / Premium / closest-valid recommendations under the audited questionnaire surface:
 
-### Environment intent
+- Drones: 23
+- Goggles: 5
+- Radios: 8
+- Chargers: 7
+- Batteries: 14
 
-`Environment` is now a real scoring input, not cosmetic questionnaire data.
+`data/product-assets.ts` contains the explicit real product image + product/source URL mapping for all 57 recommendation-visible products.
 
-Regression coverage requires materially different aircraft intent for:
-- Analog tinywhoop: tight indoor vs outdoor;
-- micro-like freestyle: tight indoor vs outdoor;
-- O4 cinematic: tight indoor vs outdoor.
+Rules used:
+- manufacturer asset preferred;
+- reputable FPV retailer asset accepted when official asset is unsuitable/unavailable;
+- exact model/version/variant only;
+- no generated/fabricated product images;
+- category SVG remains runtime-error fallback only;
+- variant-sensitive Air65 II and LAVA II records use distinct assets.
 
-Environment affects soft ranking only; hard compatibility remains unchanged.
+### Presentation work
 
-### Coverage matrix
+- `ProductCard.tsx` updated for real product imagery and compact high-value metadata.
+- Product modal already exposes image, price, key specs, compatibility, ideal use, limitations/tradeoffs, source and purchase link.
+- recommendation-visible products are no longer intentionally wired to generic placeholders.
+- `next.config.ts` includes remote image hosts used by verified manufacturer/retailer assets.
+- `lib/catalog-i18n.ts` received final recommendation-key localization fixes.
 
-`tests/recommendation-coverage-v4.test.ts` contains a high-value matrix covering:
-- beginner/intermediate/advanced;
-- tinywhoop Analog/O4/recommend;
-- micro-like/freestyle Analog/O4;
-- cinematic Analog/O4 and environments;
-- long range Analog/O4;
-- racing Analog/HDZero/recommend/explicit O4;
-- value/latency/portability/flight-time priorities;
-- FULL_KIT and DRONE_ONLY.
+### Final QA
 
-The automated assertion requires >=95% of these reasonable scenarios to return an in-budget, hard-valid kit.
+Latest verified CI at branch head `63f1f6cb4e1c876617507ba9266753d59ad25f30`:
 
-Low-budget regression requires:
-- `kind=insufficient`;
-- finite minimum recommended budget;
-- closest technically-valid kit when budget is the blocker.
+- `npm run lint` ✅
+- `npm run typecheck` ✅
+- `npm test` ✅ **90/90**
+- recommendation high-value coverage assertion >=95% ✅
+- `npm run build` ✅
+- focused Playwright Chromium ✅ **6/6**
+- E2E verifies visible recommendation images finish loading with non-zero natural width.
+- Product modal purchase/source link is exercised.
+- desktop and mobile final visual QA screenshots are produced as the `final-visual-qa` GitHub Actions artifact.
+- latest Final CI run: `34787810826` — success.
 
-### Alternatives
+The asset-discovery test was originally too broad and timed out while evaluating >5k bundles. It was corrected to a deterministic audit/contract and now completes quickly while preserving the exact 57-product surface.
 
-UI now surfaces typed alternatives when the engine has them:
-- Primary / Best pick
-- Value alternative
-- Premium upgrade
+### Iteration 5 residual caveats
 
-Alternatives must remain hard-valid and deterministic.
+- Some seller-built racing products (for example WREKD builds) can change small electronics/motors over time; the asset/link represents the audited listing, not every future batch.
+- Remote manufacturer/retailer images can move or disappear later; category fallback remains for resilience.
+- Vercel production credentials/access are external to the repository. A green GitHub Actions run does **not** prove production is updated.
 
-### Practical accessories / consumables
+## Deployment / production status
 
-New `lib/accessories.ts` implements Segment-18 category-aware extras separately from the core bundle.
+Do **not** claim the final branch is live merely from CI.
 
-Modeled examples include:
-- exact/generation-aware spare props;
-- Air65 II / Air75 II spare frame where source-backed;
-- basic FPV tool kit for larger aircraft;
-- VIFLY Finder 2 for appropriate outdoor 5-inch / long-range aircraft when recovery is not integrated;
-- VIFLY Finder Mini for appropriate outdoor cinematic use;
-- VIFLY ShortSaver 2 for repair/bench workflows, not 1S flight use;
-- SEQURE SI012 Pro repair tool;
-- SpeedyBee Adapter 3 for relevant long-range field configuration;
-- BAT-SAFE Mini/Standard containment suggestions for appropriate full-kit users.
+Known facts:
+- `main` and `devin/1788666549-fpv-mvp` are currently diverged.
+- The final working-branch implementation has green CI.
+- Production deployment must be checked independently in Vercel after reconciling branches.
+- Historical URL used by the project: `https://fpv-flight-forge.vercel.app/`, but verify which commit it is actually serving before declaring success.
 
-Rules:
-- no self-powered Finder default on 65/75mm whoops;
-- do not duplicate recovery hardware already included by AircraftProfile;
-- extras have their own subtotal;
-- `corePrice`/hard compatibility are not changed by optional/practical extras;
-- unknown exact accessory prices stay null instead of being invented.
+## Key final files
 
-### Regulation / ready-to-fly weight
-
-`lib/regulation.ts` uses ready-to-fly weight from:
-- dry aircraft weight;
-- selected flight battery;
-- payload if represented;
-- mandatory onboard hardware if represented.
-
-Unknown weight remains unknown; threshold status is not guessed.
-
-The regulatory badge now shows jurisdiction/context notes and a general official-source disclaimer for Colombia / US / EU-EASA paths.
-
-`NOT_SURE` operation purpose intentionally returns neutral CHECK_LOCAL_RULES guidance rather than claiming an exemption.
-
-`preferSimplerWeightClass` is active as a secondary soft preference among already-valid Primary/Value/Premium candidates. It never overrides hard technical compatibility and does nothing when exact RTF weight/threshold is unknown.
-
-### Localization / currency
-
-- ES/EN retained.
-- USD remains canonical catalog currency.
-- COP fixed reference conversion remains exactly 3200 COP/USD.
-- language, currency and regulatory region persist independently.
-- COP UI displays the reference-rate disclaimer.
-
-### Explanation / warnings / owned gear
-
-Result UX now surfaces:
-- why-this-kit text and structured reasons;
-- typed warnings;
-- explicit owned-gear reuse/conflicts;
-- DRONE_ONLY compatibility references;
-- beginner simulator learning note;
-- core price vs recommended extras subtotal vs total-with-extras.
-
-### Iteration 4 browser QA
-
-Focused Chromium E2E suite intentionally stays small (6 high-value browser flows):
-1. beginner full kit + progressive UX + extras;
-2. low-budget closest valid kit;
-3. DRONE_ONLY reference behavior;
-4. compatible owned DJI/ELRS gear reuse;
-5. advanced HDZero racing + LOW_LATENCY;
-6. language/currency/regulatory settings persistence.
-
-No broad image campaign and no deployment are part of Iteration 4.
-
-## Key files after Iteration 4
-
+- `data/product-assets.ts`
+- `lib/products.ts`
 - `lib/recommendation.ts`
 - `lib/recommendation-scoring.ts`
 - `lib/recommendation-v4.ts`
+- `lib/compat.ts`
 - `lib/questionnaire.ts`
 - `lib/accessories.ts`
-- `lib/compat.ts`
 - `lib/regulation.ts`
+- `lib/catalog-i18n.ts`
 - `app/components/RecommenderV4.tsx`
+- `app/components/ProductCard.tsx`
+- `app/components/ProductModal.tsx`
 - `app/components/RegulatoryBadge.tsx`
-- `app/components/LocaleProvider.tsx`
-- `app/components/LocaleSwitcher.tsx`
+- `tests/asset-discovery-v5.test.ts`
 - `tests/recommendation-engine-v3.test.ts`
 - `tests/recommendation-coverage-v4.test.ts`
 - `tests/environment-v4.test.ts`
 - `tests/regulatory-preference-v4.test.ts`
 - `e2e/recommender.spec.ts`
-- `.github/workflows/iteration2-ci.yml` (workflow display name is now `Iteration 4 CI`)
+- `.github/workflows/iteration2-ci.yml` (display name: `Final CI`)
+- `ITERATION5_FINAL.md`
 
-## Next task — Iteration 5
+## Recommended next action
 
-Do not redo catalog/compatibility/recommendation architecture unless a regression proves it necessary.
+1. Compare the 2 `main`-only commits against the 8 working-branch-only commits.
+2. Reconcile `main` into the working branch or create a clean final PR without discarding either side.
+3. Run `Final CI` again after reconciliation.
+4. Merge only once final CI is green.
+5. Trigger/verify exactly one production deployment in Vercel.
+6. Smoke-check the production URL, images, questionnaire, one Analog path, one O4 path, one HDZero/racing path, locale/currency and mobile layout.
+7. Record the actual deployed commit SHA and production URL in this handoff.
 
-Primary remaining work should be:
-- real product image/PNG asset campaign;
-- exact-generation image validation and fallback cleanup;
-- product/detail visual polish;
-- responsive/mobile visual QA;
-- accessibility/focus/reduced-motion QA;
-- final copy/translation polish;
-- final deployment/production workflow only when explicitly requested.
+## Continuation rules
 
-## Continuation checklist
-
-1. Read this file first.
-2. Confirm branch head + latest `Iteration 4 CI` result before editing.
-3. Treat Segments 01–23 as source of truth for existing behavior.
-4. Preserve hard compatibility before any UX/scoring preference.
-5. Preserve deterministic candidate pruning/tie-breaking.
-6. Run typecheck + unit/regression + build for code changes.
-7. Keep browser QA focused rather than exploding repeated scenarios.
-8. Do not deploy or merge to `main` unless explicitly requested.
+- Treat Segments 01–23 as the source of truth for existing behavior.
+- Do not weaken hard compatibility for UX/scoring.
+- Preserve deterministic pruning/tie-breaking.
+- Do not re-open catalog architecture unless a concrete regression requires it.
+- Do not replace exact product assets with another model/version just because an image is easier to find.
+- Before claiming completion, verify branch head, CI and deployed production commit independently.
