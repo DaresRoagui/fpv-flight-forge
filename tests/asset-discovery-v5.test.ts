@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { getProducts } from "@/lib/products";
 import { recommendKitV4 } from "@/lib/recommendation-v4";
-import type { AdvancedPriority, FlightEnvironment, FlightStyle, UserPreferences, VideoSystem } from "@/lib/schema";
+import type { AdvancedPriority, FlightEnvironment, FlightStyle, UserPreferences } from "@/lib/schema";
 
 const products = getProducts();
+
+type PreferenceVideoSystem = UserPreferences["videoSystem"];
 
 const styles: FlightStyle[] = ["tinywhoop", "freestyle", "cinematic", "longRange", "racing"];
 const experiences: UserPreferences["experience"][] = ["beginner", "intermediate", "advanced"];
@@ -11,8 +13,8 @@ const budgets = [450, 700, 950, 1300, 1800, 2400, 3000];
 const priorities: AdvancedPriority[] = ["BALANCED", "VALUE", "IMAGE_QUALITY", "LOW_LATENCY", "PORTABILITY", "FLIGHT_TIME", "REPAIRABILITY"];
 const contextualEnvironments: FlightEnvironment[] = ["INDOOR_TIGHT", "MIXED", "OUTDOOR"];
 
-function videos(style: FlightStyle, experience: UserPreferences["experience"]): VideoSystem[] {
-  const base: VideoSystem[] = ["analog", "dji_o4", "recommend"];
+function videos(style: FlightStyle, experience: UserPreferences["experience"]): PreferenceVideoSystem[] {
+  const base: PreferenceVideoSystem[] = ["analog", "dji_o4", "recommend"];
   if (style === "racing" || experience === "advanced") base.splice(2, 0, "hdzero");
   return base;
 }
@@ -25,7 +27,7 @@ function prefs(input: {
   budget: number;
   style: FlightStyle;
   experience: UserPreferences["experience"];
-  videoSystem: VideoSystem;
+  videoSystem: PreferenceVideoSystem;
   environment?: FlightEnvironment;
   advancedPriority: AdvancedPriority;
 }): UserPreferences {
