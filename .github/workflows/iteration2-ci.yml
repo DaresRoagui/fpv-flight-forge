@@ -1,9 +1,10 @@
-name: Iteration 4 CI
+name: Final CI
 
 on:
   push:
     branches:
       - devin/1788666549-fpv-mvp
+      - main
   workflow_dispatch:
 
 jobs:
@@ -16,10 +17,21 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - name: Install Chromium for focused E2E
         run: npx playwright install --with-deps chromium
-      - name: Run high-value Chromium E2E only
+      - name: Run six high-value Chromium E2E flows
         run: npx playwright test --project=chromium
+      - name: Upload final visual QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-visual-qa
+          path: |
+            test-results/final-desktop.png
+            test-results/final-mobile.png
+          if-no-files-found: warn
+          retention-days: 7
