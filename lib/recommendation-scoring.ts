@@ -1,12 +1,7 @@
 import { getCuratedComponentRecord } from "@/data/curated-components";
 import { getCuratedDroneRecord } from "@/data/curated-drones";
 import type { CuratedComponentRecord, FpvVideoUnit } from "@/lib/component-catalog-schema";
-import type {
-  BundleScoreBreakdown,
-  KitBundle,
-  Product,
-  UserPreferences,
-} from "@/lib/schema";
+import type { BundleScoreBreakdown, KitBundle, Product, UserPreferences } from "@/lib/schema";
 import {
   batteryMatchesDrone,
   chargerMatchesBattery,
@@ -113,15 +108,73 @@ function weightPortability(product: Product, referenceG: number): number {
   return clamp10(10 - (weight / referenceG) * 5);
 }
 
+function environmentAdjustedStyle(base: number, drone: Product, prefs: UserPreferences): number {
+  const environment = prefs.environment;
+  const size = drone.aircraftProfile?.sizeClass;
+  if (!environment || !size) return base;
+
+  let adjusted = base;
+
+  if (prefs.style === "tinywhoop") {
+    if (environment === "INDOOR_TIGHT") {
+      if (size === "WHOOP_65_1S") adjusted += 1.6;
+      else if (size === "WHOOP_75_1S" || size === "WHOOP_75_85_2S") adjusted += 0.3;
+    } else if (environment === "OUTDOOR") {
+      if (size === "WHOOP_75_1S" || size === "WHOOP_75_85_2S") adjusted += 1.8;
+      if (size === "WHOOP_65_1S") adjusted -= 1.4;
+    }
+  }
+
+  // The current questionnaire groups 2–3.5in micro freestyle under freestyle.
+  // Tight-space intent therefore needs to pull the score away from a normal 5in.
+  if (prefs.style === "freestyle") {
+    if (environment === "INDOOR_TIGHT") {
+      if (size.startsWith("WHOOP") || size.startsWith("MICRO_") || size === "CINE_2" || size === "CINE_2_5") adjusted += 2.0;
+      if (size === "FREESTYLE_5") adjusted -= 3.0;
+    } else if (environment === "OUTDOOR") {
+      if (size === "FREESTYLE_5") adjusted += 1.2;
+      if (size.startsWith("WHOOP")) adjusted -= 1.8;
+    }
+  }
+
+  if (prefs.style === "cinematic") {
+    if (environment === "INDOOR_TIGHT") {
+      if (size === "CINE_2" || size === "CINE_2_5") adjusted += 2.6;
+      if (size === "CINE_3") adjusted += 0.6;
+      if (size === "CINE_3_5") adjusted -= 2.6;
+    } else if (environment === "OUTDOOR") {
+      if (size === "CINE_3_5") adjusted += 2.4;
+      if (size === "CINE_3") adjusted += 0.9;
+      if (size === "CINE_2" || size === "CINE_2_5") adjusted -= 1.6;
+    }
+  }
+
+  return clamp10(adjusted);
+}
+
 function styleScoreFromResearch(drone: Product, prefs: UserPreferences): number {
   const record = droneRecord(drone);
+  const tinyKeys =
+    prefs.environment === "INDOOR_TIGHT"
+      ? ["indoor", "beginner", "freestyle"]
+      : prefs.environment === "OUTDOOR"
+        ? ["outdoor", "freestyle", "beginner"]
+        : ["freestyle", "indoor", "beginner"];
+  const cinematicKeys =
+    prefs.environment === "OUTDOOR"
+      ? ["outdoorCinematic", "outdoor", "cinematic", "cinematicSmoothness"]
+      : prefs.environment === "INDOOR_TIGHT"
+        ? ["indoor", "cinematic", "cinematicSmoothness"]
+        : ["cinematic", "cinematicSmoothness", "indoor"];
+
   const keysByStyle: Record<UserPreferences["style"], string[]> = {
-    tinywhoop: prefs.environment === "INDOOR_TIGHT" ? ["indoor", "beginner", "freestyle"] : ["freestyle", "indoor", "beginner"],
+    tinywhoop: tinyKeys,
     freestyle: ["generalFreestyle", "aggressiveFreestyle", "freestyle", "performance"],
-    cinematic: prefs.environment === "OUTDOOR" ? ["outdoorCinematic", "cinematic", "cinematicSmoothness"] : ["cinematic", "cinematicSmoothness", "indoor"],
+    cinematic: cinematicKeys,
     longRange: ["longRange", "endurance", "efficiency"],
     racing: prefs.experience === "advanced" ? ["competitiveRacing", "advancedRacing", "racing"] : ["intermediateRacing", "recreationalRacing", "racing"],
   };
+
   const research = fitScore(record, keysByStyle[prefs.style]);
   let base = research ?? (styleIsRecommended(drone, prefs.style) ? 9 : drone.flightStyles.includes(prefs.style) ? 6.5 : 0);
   const size = drone.aircraftProfile?.sizeClass;
@@ -138,12 +191,7 @@ function styleScoreFromResearch(drone: Product, prefs: UserPreferences): number 
     if (size === "FREESTYLE_5") base = Math.min(base, 4);
   }
 
-  if (prefs.environment === "INDOOR_TIGHT") {
-    if (size === "WHOOP_65_1S" || size === "WHOOP_75_1S" || size === "CINE_2" || size === "CINE_2_5") base = Math.min(10, base + 0.7);
-    if (size === "LONG_RANGE_7" || size === "FREESTYLE_5" || size === "RACE_5") base = Math.max(0, base - 2);
-  }
-
-  return clamp10(base);
+  return environmentAdjustedStyle(base, drone, prefs);
 }
 
 export function droneFitScore(drone: Product, prefs: UserPreferences): number {
@@ -345,9 +393,6 @@ function budgetEfficiency(price: number, budget: number, prefs: UserPreferences)
     if (ratio <= 0.98) return 6.8;
     return 5.5;
   }
-  // Research 20 explicitly rewards leaving headroom and penalizes only
-  // bundles that sit too close to the ceiling. A cheaper technically-valid
-  // bundle must never lose budget score merely because it spends less.
   if (ratio <= 0.90) return 10;
   if (ratio <= 0.98) return 8;
   return 6.5;
