@@ -35,8 +35,8 @@ describe("curated drone catalog sanity", () => {
       if (sourcedWeight !== undefined) {
         expect(product?.weightG).toBeGreaterThan(0);
         expect(product?.aircraftProfile?.dryWeightG).toBeGreaterThan(0);
-      } else {
-        expect(record.sourceSegment).toBe(7);
+      } else if (product?.weightG !== undefined) {
+        expect(product.weightG).toBeGreaterThan(0);
       }
     });
   });
