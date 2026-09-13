@@ -345,9 +345,10 @@ function budgetEfficiency(price: number, budget: number, prefs: UserPreferences)
     if (ratio <= 0.98) return 6.8;
     return 5.5;
   }
-  if (ratio <= 0.55) return 9.4;
-  if (ratio <= 0.75) return 10;
-  if (ratio <= 0.90) return 9.6;
+  // Research 20 explicitly rewards leaving headroom and penalizes only
+  // bundles that sit too close to the ceiling. A cheaper technically-valid
+  // bundle must never lose budget score merely because it spends less.
+  if (ratio <= 0.90) return 10;
   if (ratio <= 0.98) return 8;
   return 6.5;
 }
