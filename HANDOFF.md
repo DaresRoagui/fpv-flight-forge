@@ -7,8 +7,8 @@ Last updated: 2026-09-12
 - Repository: `DaresRoagui/fpv-flight-forge`
 - Working branch: `devin/1788666549-fpv-mvp`
 - Production branch: `main`
-- `main` base currently used by this branch: `0e2cf99ae88cc2b75134155531a9d4bba69ac72a`
-- Continue iterative work on the working branch. No production deploy as part of Iteration 2.
+- Continue iterative work on the working branch.
+- Do not deploy or merge to `main` unless explicitly requested.
 
 ## Product goal
 
@@ -16,11 +16,10 @@ Build a deterministic complete-kit FPV recommender centered on the aircraft:
 
 **Goggles + Drone + Radio + Charger + Batteries**
 
-Hard compatibility must always dominate scoring. Missing research data must remain nullable/gated rather than being replaced by invented values.
+Hard compatibility always dominates scoring. Missing research data remains nullable/gated rather than invented.
 
 ## Research source of truth
 
-Primary curated research used so far:
 - Segments 01–09: aircraft
 - Segment 10: analog goggles
 - Segment 11: DJI goggles / O3-O4 compatibility
@@ -33,149 +32,213 @@ Primary curated research used so far:
 - Segment 19: global compatibility/category coherence
 - Segment 20: final recommendation/scoring handoff
 
-Do not silently replace curated CORE products with autonomous discoveries.
-
 ## Iteration 1 — Drone catalog
 
 Status: IMPLEMENTED.
 
 - 99 auditable curated/derived drone records.
-- 23 enabled runtime drone records with exact price + AircraftProfile.
+- 23 enabled runtime drone records at Iteration 1 completion.
 - WATCHLIST / CONDITIONAL / DO_NOT_DEFAULT / LEGACY gating.
-- Mark5 and Vapor-D5 role corrections.
-- Exact aircraft-specific battery envelopes for enabled aircraft.
-- HDZero racing inventory represented in audit catalog.
+- Exact AircraftProfile battery envelopes for enabled aircraft.
+- Mark5/Vapor-D5 role corrections.
 
 ## Iteration 2 — Components and compatibility
 
-Status: IMPLEMENTED AND CI-VERIFIED on `devin/1788666549-fpv-mvp`.
+Status: IMPLEMENTED AND CI-VERIFIED.
 
-### Curated component inventory
+Curated catalog:
+- goggles: 17
+- radios: 14
+- chargers: 18
+- batteries: 41 curated records, plus existing Fullsend 3300 long-range runtime regression fixture
 
-Source-grounded curated catalog: **90 records**
-- goggles: **17**
-- radios: **14**
-- chargers: **18**
-- batteries: **41**
+Key corrections:
+- DJI Goggles N3 = LCD 60Hz, O4-family only for this catalog, no O3.
+- DJI Goggles 3 = O3 + O4-family.
+- HDZero Goggle 2 real Analog + HDZero path.
+- RadioMaster Pocket value path = ELRS 2.4GHz.
+- Current TX15 / TX16S MK3 generations represented.
+- BT2.0/A30 directional compatibility and PH2.0 distinction.
+- cells/chemistry/connector/capacity/weight modeled for source-backed batteries.
+- charger cells/chemistry/channels/storage/input/PSU/adapter completeness modeled.
+- `battery-gnb-1s-530` misleading legacy record removed.
+- large battery validity depends on AircraftProfile.
 
-Normal `ENABLED` curated records:
-- goggles: **5**
-- radios: **9**
-- chargers: **9**
-- batteries: **20**
+Iteration 2 CI baseline: 48/48 tests + typecheck + build passed.
 
-The runtime audit catalog also retains the existing `battery-iflight-fullsend-6s-3300` as the explicit large-pack long-range regression fixture, so runtime battery audit count is 42.
+## Iteration 3 — Complete bundle recommendation engine
 
-Legacy component catalog before Iteration 2 had:
-- goggles: 6
-- radios: 4
-- chargers: 4
-- batteries: 3
+Status: IMPLEMENTED AND CI-VERIFIED.
 
-### Architecture added
+Current verified code head before this documentation-only commit:
+`84f6535e7b4c6556001c7b161f69bdbd7b4ed129`
 
-- `lib/component-catalog-schema.ts`
-- `data/curated-goggles.ts`
-- `data/curated-radios.ts`
-- `data/curated-chargers.ts`
-- `data/curated-batteries.ts`
-- `data/curated-components.ts`
-- `lib/curated-component-products.ts`
-- `tests/component-catalog.test.ts`
+### Candidate generation
 
-`CURATED_COMPONENT_CATALOG` is the complete source-grounded audit catalog.
-`CURATED_RECOMMENDER_COMPONENTS` contains only records safe to enter normal recommendation.
+`recommendation.ts` no longer chooses the first compatible normal component.
 
-### Important corrections completed
+For each eligible drone:
+1. hard-filter compatible batteries from the exact AircraftProfile;
+2. hard-filter goggles by exact video system/unit/generation;
+3. hard-filter radios by protocol/band;
+4. hard-filter chargers against the selected battery;
+5. prune each compatible pool deterministically;
+6. evaluate complete bundle combinations;
+7. reject any remaining hard-invalid/incomplete combination;
+8. score and sort complete bundles.
 
-- DJI Goggles N3 is modeled as **single 3.5-inch 1920x1080 LCD, 60Hz**, not OLED.
-- N3 supports DJI O4 / O4 Wide / O4 Pro and explicitly rejects DJI O3.
-- DJI Goggles 3 supports O3 + O4-family units and stores latency by video-unit/mode rather than one fake generic latency.
-- HDZero Goggle 2 is represented as a real Analog + HDZero premium path.
-- RadioMaster Pocket normal value path is ELRS 2.4GHz, not CC2500/FrSky.
-- Current RadioMaster TX15 and TX16S MK3 generations are represented; stale TX16S MKII runtime record is removed.
-- TX15 is selectable 2.4/900, not Gemini-X; GX12 and TX16S MK3 are modeled as true Gemini-X paths.
-- `battery-gnb-1s-530` misleading legacy record is removed. Correct `gnb-1s-530-90c-a30` remains catalog-only until source completeness allows promotion.
-- Batteries now carry cells, chemistry, connector, capacity, weight when source-backed, max charge voltage, balance connector and roles.
-- Chargers now carry supported cell counts, chemistry, channels, storage/discharge, native/accepted connectors, adapter requirements, inputs and external-PSU completeness.
-- BT2.0/A30 compatibility is directional where research supports it; PH2.0 remains distinct.
-- Large battery validity is aircraft-profile-dependent, not globally invalid.
+Exact owned-product ID lookup may still use `.find()` because it is a direct lookup, not recommendation selection.
 
-### Compatibility cases covered by tests
+### Combinatorial pruning
 
-- N3 + O3 => invalid.
-- N3 + O4 / O4 Wide / O4 Pro => valid.
-- charger cell-count and chemistry hard filtering.
-- BT2.0 / A30 / PH2.0 behavior.
-- XT30 pack on XT60-native multi-cell charger => incomplete when adapter lead is required.
-- ELRS drone rejects incompatible FrSky radio.
-- 2.4GHz-only Pocket rejects 900MHz-only ELRS receiver.
-- HDZero has goggle + racer inventory + ELRS radio + 6S battery + 6S charger path ready for Iteration 3.
+Current deterministic caps:
+- drones per video system: 8
+- batteries per drone: 4
+- goggles per drone: 3
+- radios per drone: 3
+- chargers per battery: 3
+
+Candidates are sorted by component fit score, then lower price, then stable product ID before pruning. This avoids an unbounded Cartesian product without returning to first-compatible selection.
+
+### Bundle scoring
+
+Normalized 0–10 bundle score follows Segment 20:
+
+- droneStyleFit: 24%
+- compatibilityConfidence: 20%
+- budgetEfficiency: 14%
+- batteryFit: 10%
+- gogglesFit: 9%
+- radioFit: 7%
+- chargerFit: 6%
+- availability: 5%
+- experienceFit: 3%
+- futureProofing: 2%
+
+Hard incompatibility is removed before scoring.
+
+Component scoring uses the Segment 20 battery/goggle/radio/charger models and curated metadata.
+
+Important budget correction: a technically valid cheaper bundle is no longer penalized merely for spending less. Bundles at or below 90% of budget retain full headroom score; near-ceiling bundles are penalized. VALUE applies an even stronger price-efficiency curve.
+
+### Advanced priorities
+
+Implemented and regression-tested:
+- BALANCED
+- LOW_LATENCY
+- IMAGE_QUALITY
+- VALUE
+- PORTABILITY
+- FLIGHT_TIME
+- REPAIRABILITY
+
+LOW_LATENCY uses curated video-unit latency profiles/ecosystem metadata, not a blanket Analog bonus.
+
+Concrete tested ranking changes include:
+- IMAGE_QUALITY O4 path -> DJI Goggles 3; VALUE -> DJI Goggles N3.
+- PORTABILITY -> RadioMaster Pocket/Pocket Crush family instead of Boxer-class radio.
+- FLIGHT_TIME -> larger compatible battery than PORTABILITY on a fixed 75mm platform.
+- LOW_LATENCY competitive racing -> HDZero path.
+- REPAIRABILITY materially changes the aircraft style score where repairability/parts metadata differs.
+
+### Racing behavior
+
+- purpose-built RACE_5 aircraft outrank freestyle platforms for competitive racing;
+- explicit Analog can return a real purpose-built Analog racer;
+- explicit HDZero has a complete runtime path;
+- `recommend` racing considers HDZero + Analog + O4 and favors dedicated race ecosystems over O4 compromise;
+- explicit DJI O4 never silently switches system;
+- explicit O4 racing returns the curated Axisflying Manta race-oriented compromise with `RACING_COMPROMISE` warning.
+
+Runtime race records were added in `data/curated-drones-racing-runtime.ts` to unlock source-complete Analog/HDZero racing paths.
+
+### Scope behavior
+
+FULL_KIT:
+- budget includes purchased drone, required battery quantity, goggles, radio, charger and required completeness costs such as radio cells / PSU / charge adapter when applicable.
+
+DRONE_ONLY:
+- only drone consumes stated budget;
+- compatible battery/goggles/radio/charger are returned as reference-only items.
+
+COMPLETE_EXISTING_SETUP:
+- compatible owned gear is reused with zero purchase cost;
+- incompatible owned gear is surfaced as `OWNED_GEAR_CONFLICT` and a compatible replacement is selected rather than silently ignoring the conflict.
+
+### Alternatives
+
+When sufficient candidates exist, deterministic technically-valid alternatives can be returned as:
+- PRIMARY
+- VALUE
+- PREMIUM
+
+### Critical compatibility regressions retained
+
 - CineLog35 V3 + 3300mAh => HARD_INVALID.
 - Cinebot35 + 3300mAh => HARD_INVALID.
-- MOZ7 + 3300mAh => valid/not hard-invalid.
+- MOZ7 / supported 7-inch long range + 3300mAh => valid/not hard-invalid.
+- N3 does not accept O3.
+- ELRS band/protocol compatibility remains hard-filtered.
+- charger cell/chemistry/connector completeness remains hard-filtered.
 
-## CI status after Iteration 2
+## Iteration 3 tests and CI
 
-GitHub Actions workflow: `Iteration 2 CI`
-Run ID: `34725118626`
-Verified head before this handoff update: `8d75e4760a6c3a8a3af40708126b046b33fe6773`
+Verification workflow run: `34727875609`
+Verified code head: `84f6535e7b4c6556001c7b161f69bdbd7b4ed129`
 
 Passed:
 - `npm ci`
 - `npm run typecheck`
-- `npm test` — **48/48 tests passed**
+- `npm test` — **69/69 tests passed across 5 files**
 - `npm run build` — Next.js production build succeeded
 
-No deploy was performed by Iteration 2 CI.
+Iteration 3-specific suite: `tests/recommendation-engine-v3.test.ts` — **20/20 passed**.
 
-## Real blockers / next task — Iteration 3
+Covered scenarios include:
+- beginner tinywhoop Analog indoor
+- beginner tinywhoop O4 indoor
+- freestyle 5-inch Analog/O4
+- competitive racing Analog/HDZero/recommend/explicit O4
+- cinematic
+- long range
+- LOW_LATENCY / IMAGE_QUALITY / VALUE / PORTABILITY / FLIGHT_TIME / REPAIRABILITY
+- FULL_KIT / DRONE_ONLY / COMPLETE_EXISTING_SETUP
+- owned gear compatible/conflict
+- deterministic alternatives
+- CineLog35/Cinebot35/MOZ7 3300mAh regressions
 
-The data layer is ready; the main remaining work is bundle generation/scoring.
+## Key Iteration 3 files
 
-1. `userPreferences.videoSystem` still exposes only `analog | dji_o4 | recommend`; add HDZero selection/recommendation deliberately in Iteration 3.
-2. Real HDZero racing aircraft exist in the audit catalog, but a purpose-built HDZero racer still needs promotion into runtime once exact price + full AircraftProfile requirements are satisfied.
-3. Refactor `recommendation.ts` around complete compatible bundle generation instead of first-match component selection.
-4. Treat adapter/PSU/radio-battery completeness as bundle completeness, not merely product compatibility.
-5. Use component editorial metrics (latency/display/value/ergonomics/charger completeness/etc.) only after hard filters.
-6. Preserve aircraft-specific battery range as a hard compatibility gate.
-7. Do not rework product images yet.
-
-## Iteration 3 target architecture
-
-A. Generate eligible drone candidates from user intent.
-B. Generate compatible goggles/radio/battery/charger combinations per drone.
-C. Reject HARD_INVALID or incomplete bundles.
-D. Score complete bundles and return strongest options/alternatives.
-
-Compatibility must outrank all editorial scores.
-
-## Key files after Iteration 2
-
-- `lib/schema.ts`
+- `lib/recommendation.ts`
+- `lib/recommendation-scoring.ts`
 - `lib/compat.ts`
-- `lib/products.ts`
-- `lib/catalog-schema.ts`
-- `lib/component-catalog-schema.ts`
-- `lib/curated-drone-products.ts`
-- `lib/curated-component-products.ts`
-- `data/curated-drones*.ts`
-- `data/curated-goggles.ts`
-- `data/curated-radios.ts`
-- `data/curated-chargers.ts`
-- `data/curated-batteries.ts`
-- `data/curated-components.ts`
-- `tests/catalog-sanity.test.ts`
-- `tests/component-catalog.test.ts`
+- `lib/schema.ts`
+- `data/curated-drones-racing-runtime.ts`
+- `data/curated-drones.ts`
+- `tests/recommendation-engine-v3.test.ts`
 - `tests/recommendation.test.ts`
 - `tests/regression.test.ts`
-- `.github/workflows/iteration2-ci.yml`
-- `HANDOFF.md`
+- `tests/catalog-sanity.test.ts`
+
+## Next task — Iteration 4
+
+Main remaining work is coverage/UX/alternatives/accessories/regulation QA, not another recommendation-engine rewrite.
+
+Potential Iteration 4 focus:
+- improve user-facing explainability for score breakdown and compatibility reasons;
+- surface Primary / Value / Premium clearly in UI;
+- improve insufficient-budget/minimum-compatible-kit UX;
+- accessories/extras coverage and category-specific recommendations;
+- regulation/weight UX QA;
+- broader edge-case and integration coverage;
+- keep image campaign for the later image/final-QA iteration.
 
 ## Continuation checklist
 
 1. Read this file first.
 2. Confirm working branch/head before editing.
-3. Treat Segments 01–20 as source of truth.
-4. Run typecheck + unit tests + production build after every Iteration 3 milestone.
-5. Do not deploy or merge to `main` unless explicitly requested.
+3. Treat Segments 01–20 as source of truth for engine behavior.
+4. Preserve hard compatibility before scoring.
+5. Preserve deterministic pruning/tie-breaking.
+6. Run typecheck + unit tests + production build after changes.
+7. Do not deploy or merge to `main` unless explicitly requested.
