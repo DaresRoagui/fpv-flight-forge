@@ -98,6 +98,15 @@ function videoImageQuality(drone: Product): number {
   return 7;
 }
 
+function ecosystemLatencyPotential(drone: Product): number {
+  const unit = videoUnit(drone);
+  if (unit === "HDZERO") return 10;
+  if (unit === "ANALOG_5_8") return 8.7;
+  if (unit === "DJI_O4_PRO") return 7.8;
+  if (unit === "DJI_O4_WIDE" || unit === "DJI_O4") return 7.2;
+  return 6.5;
+}
+
 function weightPortability(product: Product, referenceG: number): number {
   const weight = productWeightG(product);
   if (weight === null) return 6.5;
@@ -115,16 +124,21 @@ function styleScoreFromResearch(drone: Product, prefs: UserPreferences): number 
   };
   const research = fitScore(record, keysByStyle[prefs.style]);
   let base = research ?? (styleIsRecommended(drone, prefs.style) ? 9 : drone.flightStyles.includes(prefs.style) ? 6.5 : 0);
+  const size = drone.aircraftProfile?.sizeClass;
+
+  if (prefs.style === "freestyle" && prefs.experience !== "beginner" && prefs.environment !== "INDOOR_TIGHT") {
+    if (size?.startsWith("WHOOP")) base = Math.min(base, 5.8);
+    if (size === "FREESTYLE_5") base = Math.max(base, 9.2);
+  }
 
   if (prefs.style === "racing") {
     const raceClass = record?.raceClass ?? drone.keySpecs?.raceClass;
-    if (prefs.experience !== "beginner" && raceClass === "OPEN_5IN") base = Math.max(base, 9.2);
-    if (prefs.experience !== "beginner" && drone.aircraftProfile?.sizeClass.startsWith("WHOOP")) base = Math.min(base, 8.5);
-    if (drone.aircraftProfile?.sizeClass === "FREESTYLE_5") base = Math.min(base, 4);
+    if (prefs.experience !== "beginner" && raceClass === "OPEN_5IN") base = Math.max(base, 9.4);
+    if (prefs.experience !== "beginner" && size?.startsWith("WHOOP")) base = Math.min(base, 6.8);
+    if (size === "FREESTYLE_5") base = Math.min(base, 4);
   }
 
   if (prefs.environment === "INDOOR_TIGHT") {
-    const size = drone.aircraftProfile?.sizeClass;
     if (size === "WHOOP_65_1S" || size === "WHOOP_75_1S" || size === "CINE_2" || size === "CINE_2_5") base = Math.min(10, base + 0.7);
     if (size === "LONG_RANGE_7" || size === "FREESTYLE_5" || size === "RACE_5") base = Math.max(0, base - 2);
   }
@@ -156,17 +170,19 @@ export function droneFitScore(drone: Product, prefs: UserPreferences): number {
 
   if (prefs.advancedPriority === "REPAIRABILITY") {
     const repair = scoreOr(drone.repairabilityScore ?? fitScore(record, ["repairability"]), 6.5);
-    base = weighted([[base, 0.6], [repair, 0.25], [parts, 0.15]]);
+    base = weighted([[base, 0.58], [repair, 0.27], [parts, 0.15]]);
   } else if (prefs.advancedPriority === "PORTABILITY") {
     const reference = prefs.style === "tinywhoop" ? 40 : prefs.style === "racing" ? 400 : prefs.style === "longRange" ? 900 : 550;
-    base = weighted([[base, 0.75], [weightPortability(drone, reference), 0.25]]);
+    base = weighted([[base, 0.72], [weightPortability(drone, reference), 0.28]]);
   } else if (prefs.advancedPriority === "FLIGHT_TIME") {
     const efficiency = scoreOr(fitScore(record, ["efficiency", "endurance"]), Math.min(10, (drone.aircraftProfile?.battery.capacityMah.idealMax ?? 500) / 300));
-    base = weighted([[base, 0.78], [efficiency, 0.22]]);
+    base = weighted([[base, 0.75], [efficiency, 0.25]]);
   } else if (prefs.advancedPriority === "IMAGE_QUALITY") {
-    base = weighted([[base, 0.82], [videoImageQuality(drone), 0.18]]);
+    base = weighted([[base, 0.78], [videoImageQuality(drone), 0.22]]);
+  } else if (prefs.advancedPriority === "LOW_LATENCY") {
+    base = weighted([[base, 0.68], [ecosystemLatencyPotential(drone), 0.32]]);
   } else if (prefs.advancedPriority === "VALUE") {
-    base = weighted([[base, 0.82], [value, 0.18]]);
+    base = weighted([[base, 0.74], [value, 0.26]]);
   }
 
   return clamp10(base);
@@ -209,10 +225,10 @@ export function goggleFitScore(goggles: Product, drone: Product, prefs: UserPref
 
   let weights = { video: 0.30, latency: 0.18, display: 0.15, value: 0.12, vision: 0.10, comfort: 0.06, availability: 0.05, future: 0.04 };
   if (prefs.style === "racing") weights = { ...weights, latency: 0.28, display: 0.11, value: 0.08, vision: 0.07, comfort: 0.05, future: 0.03 };
-  if (prefs.advancedPriority === "LOW_LATENCY") weights = { video: 0.27, latency: 0.38, display: 0.09, value: 0.07, vision: 0.06, comfort: 0.05, availability: 0.05, future: 0.03 };
-  if (prefs.advancedPriority === "IMAGE_QUALITY") weights = { video: 0.25, latency: 0.12, display: 0.32, value: 0.08, vision: 0.07, comfort: 0.05, availability: 0.04, future: 0.07 };
-  if (prefs.advancedPriority === "VALUE") weights = { video: 0.28, latency: 0.10, display: 0.09, value: 0.27, vision: 0.07, comfort: 0.04, availability: 0.10, future: 0.05 };
-  if (prefs.advancedPriority === "PORTABILITY") weights = { video: 0.28, latency: 0.13, display: 0.10, value: 0.10, vision: 0.07, comfort: 0.22, availability: 0.05, future: 0.05 };
+  if (prefs.advancedPriority === "LOW_LATENCY") weights = { video: 0.25, latency: 0.42, display: 0.08, value: 0.06, vision: 0.05, comfort: 0.04, availability: 0.05, future: 0.05 };
+  if (prefs.advancedPriority === "IMAGE_QUALITY") weights = { video: 0.23, latency: 0.10, display: 0.38, value: 0.06, vision: 0.07, comfort: 0.04, availability: 0.04, future: 0.08 };
+  if (prefs.advancedPriority === "VALUE") weights = { video: 0.24, latency: 0.07, display: 0.06, value: 0.42, vision: 0.05, comfort: 0.03, availability: 0.09, future: 0.04 };
+  if (prefs.advancedPriority === "PORTABILITY") weights = { video: 0.25, latency: 0.10, display: 0.08, value: 0.09, vision: 0.06, comfort: 0.28, availability: 0.07, future: 0.07 };
 
   return weighted([
     [compatibility, weights.video], [latency, weights.latency], [display, weights.display], [value, weights.value],
@@ -236,8 +252,8 @@ export function radioFitScore(radio: Product, drone: Product, prefs: UserPrefere
   let weights = { protocol: 0.30, ergonomics: 0.16, gimbal: 0.14, value: 0.12, battery: 0.08, portability: 0.07, rf: 0.06, availability: 0.04, display: 0.03 };
   if (prefs.style === "racing") weights = { protocol: 0.28, ergonomics: 0.20, gimbal: 0.22, value: 0.09, battery: 0.05, portability: 0.05, rf: 0.04, availability: 0.04, display: 0.03 };
   if (prefs.style === "longRange") weights = { protocol: 0.28, ergonomics: 0.12, gimbal: 0.10, value: 0.10, battery: 0.08, portability: 0.06, rf: 0.18, availability: 0.05, display: 0.03 };
-  if (prefs.advancedPriority === "PORTABILITY") weights = { protocol: 0.28, ergonomics: 0.12, gimbal: 0.10, value: 0.12, battery: 0.07, portability: 0.23, rf: 0.03, availability: 0.03, display: 0.02 };
-  if (prefs.advancedPriority === "VALUE") weights = { protocol: 0.30, ergonomics: 0.12, gimbal: 0.10, value: 0.25, battery: 0.06, portability: 0.06, rf: 0.04, availability: 0.05, display: 0.02 };
+  if (prefs.advancedPriority === "PORTABILITY") weights = { protocol: 0.25, ergonomics: 0.10, gimbal: 0.08, value: 0.10, battery: 0.06, portability: 0.30, rf: 0.03, availability: 0.05, display: 0.03 };
+  if (prefs.advancedPriority === "VALUE") weights = { protocol: 0.27, ergonomics: 0.10, gimbal: 0.08, value: 0.32, battery: 0.05, portability: 0.06, rf: 0.04, availability: 0.06, display: 0.02 };
 
   return weighted([
     [protocol, weights.protocol], [ergonomics, weights.ergonomics], [gimbal, weights.gimbal], [value, weights.value],
@@ -282,9 +298,9 @@ export function batteryFitScore(battery: Product, drone: Product, prefs: UserPre
 
   let weights = { exact: 0.25, weight: 0.20, capacity: 0.18, power: 0.15, physical: 0.10, value: 0.05, availability: 0.04, evidence: 0.03 };
   if (prefs.style === "racing") weights = { exact: 0.24, weight: 0.25, capacity: 0.14, power: 0.20, physical: 0.08, value: 0.03, availability: 0.03, evidence: 0.03 };
-  if (prefs.advancedPriority === "FLIGHT_TIME") weights = { exact: 0.23, weight: 0.12, capacity: 0.35, power: 0.10, physical: 0.09, value: 0.04, availability: 0.04, evidence: 0.03 };
-  if (prefs.advancedPriority === "PORTABILITY") weights = { exact: 0.24, weight: 0.36, capacity: 0.11, power: 0.10, physical: 0.08, value: 0.04, availability: 0.04, evidence: 0.03 };
-  if (prefs.advancedPriority === "VALUE") weights = { exact: 0.24, weight: 0.16, capacity: 0.16, power: 0.12, physical: 0.09, value: 0.15, availability: 0.05, evidence: 0.03 };
+  if (prefs.advancedPriority === "FLIGHT_TIME") weights = { exact: 0.20, weight: 0.08, capacity: 0.43, power: 0.10, physical: 0.08, value: 0.04, availability: 0.04, evidence: 0.03 };
+  if (prefs.advancedPriority === "PORTABILITY") weights = { exact: 0.22, weight: 0.44, capacity: 0.08, power: 0.08, physical: 0.07, value: 0.04, availability: 0.04, evidence: 0.03 };
+  if (prefs.advancedPriority === "VALUE") weights = { exact: 0.22, weight: 0.13, capacity: 0.13, power: 0.10, physical: 0.08, value: 0.24, availability: 0.06, evidence: 0.04 };
 
   return weighted([
     [exactFit, weights.exact], [weightScore, weights.weight], [capacityScore, weights.capacity], [power, weights.power],
@@ -308,8 +324,8 @@ export function chargerFitScore(charger: Product, battery: Product, prefs: UserP
   const availability = availabilityFit(charger);
 
   let weights = { compatibility: 0.30, storage: 0.12, channels: 0.12, psu: 0.10, balance: 0.10, value: 0.08, reliability: 0.08, portability: 0.05, availability: 0.05 };
-  if (prefs.advancedPriority === "VALUE") weights = { compatibility: 0.28, storage: 0.09, channels: 0.09, psu: 0.14, balance: 0.08, value: 0.20, reliability: 0.05, portability: 0.03, availability: 0.04 };
-  if (prefs.advancedPriority === "PORTABILITY") weights = { compatibility: 0.28, storage: 0.08, channels: 0.08, psu: 0.11, balance: 0.07, value: 0.08, reliability: 0.06, portability: 0.20, availability: 0.04 };
+  if (prefs.advancedPriority === "VALUE") weights = { compatibility: 0.25, storage: 0.08, channels: 0.08, psu: 0.13, balance: 0.07, value: 0.27, reliability: 0.05, portability: 0.03, availability: 0.04 };
+  if (prefs.advancedPriority === "PORTABILITY") weights = { compatibility: 0.25, storage: 0.07, channels: 0.07, psu: 0.10, balance: 0.06, value: 0.07, reliability: 0.05, portability: 0.29, availability: 0.04 };
 
   return weighted([
     [compatibility, weights.compatibility], [storage, weights.storage], [channels, weights.channels], [psu, weights.psu],
@@ -321,15 +337,17 @@ function budgetEfficiency(price: number, budget: number, prefs: UserPreferences)
   if (budget <= 0 || price > budget) return 0;
   const ratio = price / budget;
   if (prefs.advancedPriority === "VALUE") {
-    if (ratio <= 0.70) return 10;
-    if (ratio <= 0.85) return 9.7;
-    if (ratio <= 0.90) return 9.2;
-    if (ratio <= 0.98) return 7.5;
-    return 6;
+    if (ratio <= 0.45) return 10;
+    if (ratio <= 0.55) return 9.8;
+    if (ratio <= 0.70) return 9.3;
+    if (ratio <= 0.82) return 8.7;
+    if (ratio <= 0.90) return 8;
+    if (ratio <= 0.98) return 6.8;
+    return 5.5;
   }
-  if (ratio <= 0.65) return 8.8;
-  if (ratio <= 0.85) return 10;
-  if (ratio <= 0.90) return 9.7;
+  if (ratio <= 0.55) return 9.4;
+  if (ratio <= 0.75) return 10;
+  if (ratio <= 0.90) return 9.6;
   if (ratio <= 0.98) return 8;
   return 6.5;
 }
