@@ -1,87 +1,47 @@
 import { describe, expect, it } from "vitest";
+import { FINAL_RECOMMENDATION_PRODUCT_IDS, PRODUCT_ASSETS } from "@/data/product-assets";
 import { getProducts } from "@/lib/products";
-import { recommendKitV4 } from "@/lib/recommendation-v4";
-import type { AdvancedPriority, FlightEnvironment, FlightStyle, UserPreferences } from "@/lib/schema";
 
-const products = getProducts();
-const styles: FlightStyle[] = ["tinywhoop", "freestyle", "cinematic", "longRange", "racing"];
-const experiences: UserPreferences["experience"][] = ["beginner", "intermediate", "advanced"];
-const budgets = [450, 700, 950, 1300, 1800, 2400, 3000];
-const priorities: AdvancedPriority[] = ["BALANCED", "VALUE", "IMAGE_QUALITY", "LOW_LATENCY", "PORTABILITY", "FLIGHT_TIME", "REPAIRABILITY"];
-const environments: FlightEnvironment[] = ["INDOOR_TIGHT", "MIXED", "OUTDOOR"];
+const EXPECTED_COUNTS = {
+  drone: 23,
+  goggles: 5,
+  radio: 8,
+  charger: 7,
+  battery: 14,
+} as const;
 
-type QuestionnaireVideo = UserPreferences["videoSystem"];
+describe("Iteration 5 final recommendation assets", () => {
+  it("covers the complete audited recommendation-visible surface with real exact assets", () => {
+    const products = getProducts();
+    expect(FINAL_RECOMMENDATION_PRODUCT_IDS).toHaveLength(57);
+    expect(Object.keys(PRODUCT_ASSETS)).toHaveLength(57);
 
-function videoChoices(style: FlightStyle, experience: UserPreferences["experience"]): QuestionnaireVideo[] {
-  const base: QuestionnaireVideo[] = ["analog", "dji_o4", "recommend"];
-  if (style === "racing" || experience === "advanced") base.splice(2, 0, "hdzero");
-  return base;
-}
-
-function envChoices(style: FlightStyle): Array<FlightEnvironment | undefined> {
-  return style === "tinywhoop" || style === "freestyle" || style === "cinematic" ? environments : [undefined];
-}
-
-function prefs(input: Pick<UserPreferences, "budget" | "style" | "experience" | "videoSystem" | "environment" | "advancedPriority">): UserPreferences {
-  return {
-    ...input,
-    scope: "FULL_KIT",
-    ownedGear: {},
-    regulatoryRegion: "CO",
-    operationPurpose: "RECREATIONAL",
-    preferSimplerWeightClass: false,
-  };
-}
-
-describe("Iteration 5 recommendation asset discovery", () => {
-  it("discovers the exact product surface that can appear as primary/value/premium", () => {
-    const seen = new Map<string, { id: string; name: string; category: string; roles: Set<string> }>();
-    let kits = 0;
-
-    for (const style of styles) {
-      for (const experience of experiences) {
-        const activePriorities = experience === "advanced" ? priorities : (["BALANCED"] as AdvancedPriority[]);
-        for (const videoSystem of videoChoices(style, experience)) {
-          for (const environment of envChoices(style)) {
-            for (const advancedPriority of activePriorities) {
-              for (const budget of budgets) {
-                const result = recommendKitV4(prefs({ budget, style, experience, videoSystem, environment, advancedPriority }), products);
-                const bundles = result.kind === "kit" ? [result.kit, ...(result.alternatives ?? [])] : result.kit ? [result.kit] : [];
-                for (const bundle of bundles) {
-                  const role = bundle.alternativeRole ?? (result.kind === "kit" && bundle === result.kit ? "PRIMARY" : "CLOSEST_VALID");
-                  if (role === "CLOSEST_VALID") continue;
-                  kits += 1;
-                  for (const item of bundle.items.filter((entry) => !entry.referenceOnly)) {
-                    const existing = seen.get(item.product.id) ?? { id: item.product.id, name: item.product.name, category: item.product.category, roles: new Set<string>() };
-                    existing.roles.add(role);
-                    seen.set(item.product.id, existing);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+    const counts: Record<string, number> = {};
+    for (const id of FINAL_RECOMMENDATION_PRODUCT_IDS) {
+      const asset = PRODUCT_ASSETS[id];
+      const product = products.find((candidate) => candidate.id === id);
+      expect(asset, `${id} missing asset manifest`).toBeDefined();
+      expect(product, `${id} missing runtime product`).toBeDefined();
+      expect(asset.image.startsWith("https://"), `${id} image must be real HTTPS`).toBe(true);
+      expect(asset.productUrl.startsWith("https://"), `${id} source must be HTTPS`).toBe(true);
+      expect(asset.image).not.toMatch(/\/images\/(drone|goggles|radio|charger|battery)\.svg$/);
+      expect(product?.images[0]).toBe(asset.image);
+      expect(product?.productUrl).toBe(asset.productUrl);
+      counts[product!.category] = (counts[product!.category] ?? 0) + 1;
     }
 
-    const audit = [...seen.values()]
-      .map((entry) => {
-        const product = products.find((candidate) => candidate.id === entry.id)!;
-        return {
-          ...entry,
-          roles: [...entry.roles].sort(),
-          productUrl: product.productUrl ?? null,
-          images: product.images,
-          sources: product.sources ?? [],
-        };
-      })
-      .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    expect(counts).toEqual(EXPECTED_COUNTS);
+  });
 
-    const byCategory = Object.fromEntries(["drone", "goggles", "radio", "charger", "battery"].map((category) => [category, audit.filter((p) => p.category === category).map((p) => p.id)]));
-    console.log("V5_ASSET_SURFACE=" + JSON.stringify({ kits, count: audit.length, byCategory }));
-    console.log("V5_ASSET_METADATA=" + JSON.stringify(audit));
-
-    expect(kits).toBeGreaterThan(0);
-    expect(audit.length).toBeGreaterThan(0);
-  }, 60_000);
+  it("keeps visually distinct variants on distinct exact images", () => {
+    const uniqueImages = (ids: string[]) => new Set(ids.map((id) => PRODUCT_ASSETS[id].image)).size;
+    expect(uniqueImages(["betafpv-air65-ii-champion", "betafpv-air65-ii-freestyle", "betafpv-air65-ii-racing"])).toBe(3);
+    expect(uniqueImages([
+      "betafpv-lava-ii-1s-280",
+      "betafpv-lava-ii-1s-320",
+      "betafpv-lava-ii-1s-480",
+      "betafpv-lava-ii-1s-580",
+      "betafpv-lava-ii-1s-680",
+    ])).toBe(5);
+  });
 });
