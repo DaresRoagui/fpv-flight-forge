@@ -1,4 +1,4 @@
-name: Iteration 2 CI
+name: Iteration 4 CI
 
 on:
   push:
@@ -19,3 +19,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Install Chromium for focused E2E
+        run: npx playwright install --with-deps chromium
+      - name: Run high-value Chromium E2E only
+        run: npx playwright test --project=chromium
