@@ -54,6 +54,16 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 }
 
+async function expectVisibleProductImagesLoaded(page: Page) {
+  const images = page.getByTestId("result-products").locator("img");
+  await expect(images.first()).toBeVisible();
+  await page.waitForFunction(() => {
+    const visibleImages = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="result-products"] img'))
+      .filter((image) => image.getBoundingClientRect().width > 0 && image.getBoundingClientRect().height > 0) as HTMLImageElement[];
+    return visibleImages.length > 0 && visibleImages.every((image) => image.complete && image.naturalWidth > 0);
+  }, undefined, { timeout: 20_000 });
+}
+
 test.describe("Final high-value browser flows", () => {
   test("beginner full kit stays progressive and renders real product assets", async ({ page }) => {
     await completeQuiz(page, { budget: "900", style: "tinywhoop", experience: "beginner", environment: "INDOOR_TIGHT", video: "analog" });
@@ -63,7 +73,15 @@ test.describe("Final high-value browser flows", () => {
     await expect(page.getByTestId("beginner-learning-note")).toBeVisible();
     await expect(page.getByTestId("result-products").locator("img").first()).toHaveAttribute("src", /^https:\/\//);
     await expect(page.getByTestId("result-products").getByTestId("product-quick-specs").first()).toBeVisible();
+    await expectVisibleProductImagesLoaded(page);
     await expectNoHorizontalOverflow(page);
+
+    await page.getByTestId("result-products").getByTestId("product-card-details").first().click();
+    await expect(page.getByTestId("product-modal")).toBeVisible();
+    const buyLink = page.getByTestId("product-modal").locator('a[target="_blank"]');
+    await expect(buyLink).toHaveAttribute("href", /^https:\/\//);
+    await page.getByTestId("close-modal").click();
+
     await page.screenshot({ path: "test-results/final-desktop.png", fullPage: true });
   });
 
@@ -118,6 +136,7 @@ test.describe("Final high-value browser flows", () => {
     await expect(page.getByTestId("result-title")).toContainText(/kit/i);
     await expect(page.getByTestId("regulatory-badge")).toBeVisible();
     await expect(page.getByTestId("regulatory-badge")).toContainText(/United States|U\.S\.|FAA/i);
+    await expectVisibleProductImagesLoaded(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: "test-results/final-mobile.png", fullPage: true });
   });
