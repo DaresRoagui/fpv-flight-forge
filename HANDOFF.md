@@ -1,16 +1,17 @@
 # FPV Flight Forge — Project Handoff
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 ## Current repository state
 
 - Repository: `DaresRoagui/fpv-flight-forge`
-- Working branch: `devin/1788666549-fpv-mvp`
-- Working branch head before this handoff commit: `63f1f6cb4e1c876617507ba9266753d59ad25f30`
+- Final Iteration 5 branch: `devin/1788666549-fpv-mvp`
+- Certified reconciled branch SHA: `981c51cc86f898756caa4ed082452aa010147bf7`
 - Production branch: `main`
-- `main` and the working branch are currently **diverged**. The working branch is 8 commits ahead and 2 commits behind `main` relative to their common merge base.
-- Do not blindly force/fast-forward one branch over the other. Reconcile the 2 `main`-only commits before a final merge.
-- Old PR #1 is already merged/closed and does not represent the current final branch state.
+- Final functional merge SHA on `main`: `4dc38b2d7916e1ff26aafab327ab41ab2fd0c021`
+- PR #4 merged the certified branch normally into `main`; no force push or commit discard was used.
+- The merge commit and certified branch have the same tree SHA: `397f1094517cd1cc3a67af2e995ef245e7c2ecea`.
+- Iteration 5 is integrated, certified and verified in production.
 
 ## Product goal
 
@@ -133,7 +134,7 @@ Implemented:
 
 ## Iteration 5 — assets, presentation, final QA
 
-Status: **IMPLEMENTATION COMPLETE ON THE WORKING BRANCH; FINAL PRODUCTION RECONCILIATION/DEPLOYMENT STILL REQUIRES BRANCH reconciliation and independent Vercel verification.**
+Status: **COMPLETE — INTEGRATED INTO MAIN AND VERIFIED IN PRODUCTION.**
 
 ### Recommendation-visible product asset audit
 
@@ -165,7 +166,7 @@ Rules used:
 
 ### Final QA
 
-Latest verified CI at branch head `63f1f6cb4e1c876617507ba9266753d59ad25f30`:
+Final verified CI at `main` merge SHA `4dc38b2d7916e1ff26aafab327ab41ab2fd0c021`:
 
 - `npm run lint` ✅
 - `npm run typecheck` ✅
@@ -176,7 +177,7 @@ Latest verified CI at branch head `63f1f6cb4e1c876617507ba9266753d59ad25f30`:
 - E2E verifies visible recommendation images finish loading with non-zero natural width.
 - Product modal purchase/source link is exercised.
 - desktop and mobile final visual QA screenshots are produced as the `final-visual-qa` GitHub Actions artifact.
-- latest Final CI run: `34787810826` — success.
+- final `main` Final CI run: `34790817076` — success.
 
 The asset-discovery test was originally too broad and timed out while evaluating >5k bundles. It was corrected to a deterministic audit/contract and now completes quickly while preserving the exact 57-product surface.
 
@@ -188,13 +189,34 @@ The asset-discovery test was originally too broad and timed out while evaluating
 
 ## Deployment / production status
 
-Do **not** claim the final branch is live merely from CI.
+Status: **PRODUCTION VERIFIED — COMPLETE.**
 
-Known facts:
-- `main` and `devin/1788666549-fpv-mvp` are currently diverged.
-- The final working-branch implementation has green CI.
-- Production deployment must be checked independently in Vercel after reconciling branches.
-- Historical URL used by the project: `https://fpv-flight-forge.vercel.app/`, but verify which commit it is actually serving before declaring success.
+- Final functional `main` SHA: `4dc38b2d7916e1ff26aafab327ab41ab2fd0c021`
+- SHA verified as deployed in Vercel: `4dc38b2d7916e1ff26aafab327ab41ab2fd0c021`
+- Production URL: `https://fpv-flight-forge.vercel.app/`
+- Vercel deployment: `fpv-flight-forge-ei8ejd435-daatoroag-2461s-projects.vercel.app`
+- Vercel status: `Ready`
+- Verification date: 2026-09-14 UTC
+- No additional production deployment was required because Vercel was already serving the final functional merge SHA.
+
+### Final production smoke test
+
+Result: **PASS.**
+
+- initial load and questionnaire ✅
+- Analog recommendation and closest-valid budget behavior ✅
+- hard compatibility explanations ✅
+- DJI O4 recommendation ✅
+- HDZero racing / low-latency recommendation ✅
+- all visible recommendation images loaded with non-zero natural width ✅
+- product modal, specifications and external source/purchase link ✅
+- ES/EN localization ✅
+- COP/USD currency switching ✅
+- Colombia/United States regulation content ✅
+- desktop layout without horizontal overflow ✅
+- mobile 393×852 flow covered by the successful exact-tree Playwright suite ✅
+- no visible `translation.*` or `recommendation.*` keys ✅
+- no application-origin runtime errors observed during the production smoke test ✅
 
 ## Key final files
 
@@ -223,13 +245,7 @@ Known facts:
 
 ## Recommended next action
 
-1. Compare the 2 `main`-only commits against the 8 working-branch-only commits.
-2. Reconcile `main` into the working branch or create a clean final PR without discarding either side.
-3. Run `Final CI` again after reconciliation.
-4. Merge only once final CI is green.
-5. Trigger/verify exactly one production deployment in Vercel.
-6. Smoke-check the production URL, images, questionnaire, one Analog path, one O4 path, one HDZero/racing path, locale/currency and mobile layout.
-7. Record the actual deployed commit SHA and production URL in this handoff.
+The planned Iteration 5 integration and production closure are complete. Begin a new scoped iteration only for a new product requirement or a concrete regression.
 
 ## Continuation rules
 
